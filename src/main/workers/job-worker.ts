@@ -13,7 +13,7 @@ import fs from 'fs'
 console.log('[Job Worker] Worker thread started')
 
 interface JobMessage {
-  type: 'transcription' | 'summary'
+  type: 'transcription' | 'summary' | 'image-description'
   jobId: string
   payload: any
   dbPath: string
@@ -43,6 +43,8 @@ parentPort?.on('message', async (message: JobMessage) => {
       result = await handleTranscription(payload, config, db)
     } else if (type === 'summary') {
       result = await handleSummary(payload, config, db)
+    } else if (type === 'image-description') {
+      result = await handleImageDescription(payload, config, db)
     } else {
       throw new Error(`Unknown job type: ${type}`)
     }
@@ -141,6 +143,74 @@ async function handleSummary(
   })
 
   return summary
+}
+
+async function handleImageDescription(
+  payload: { captureId: string; imagePath: string },
+  config: any,
+  db: any
+): Promise<string> {
+  console.log('[Job Worker] Handling image-description job')
+  console.log('[Job Worker] Image path:', payload.imagePath)
+
+  const factory = new ProviderFactory()
+
+  if (!llmProvider) {
+    console.log('[Job Worker] Creating LLM provider for image description...')
+    llmProvider = factory.createLLMProvider(config.llm)
+    console.log('[Job Worker] LLM provider created:', llmProvider.name)
+  }
+
+  // Check if LLM provider is disabled
+  if (llmProvider.name === 'disabled') {
+    console.log('[Job Worker] LLM provider is disabled, skipping image description')
+    return '' // Return empty string, will keep filename
+  }
+
+  // Read image file as base64
+  if (!fs.existsSync(payload.imagePath)) {
+    throw new Error(`Image file not found: ${payload.imagePath}`)
+  }
+
+  const imageBuffer = fs.readFileSync(payload.imagePath)
+  const base64 = imageBuffer.toString('base64')
+
+  // Determine MIME type from file extension
+  const ext = payload.imagePath.split('.').pop()?.toLowerCase()
+  const mimeType = getMimeType(ext || 'png')
+
+  console.log('[Job Worker] Generating image title...')
+  const title = await llmProvider.generateImageTitle(base64, mimeType)
+  console.log('[Job Worker] Image title generated:', title)
+
+  // Update capture title if we got a result
+  if (title && title.trim()) {
+    const capture = await db.select()
+      .from(schema.captures)
+      .where(eq(schema.captures.id, payload.captureId))
+      .limit(1)
+
+    if (capture[0]) {
+      await db.update(schema.captures)
+        .set({ title: title.trim() })
+        .where(eq(schema.captures.id, payload.captureId))
+    }
+  }
+
+  return title
+}
+
+function getMimeType(ext: string): string {
+  const mimeTypes: Record<string, string> = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'bmp': 'image/bmp',
+    'svg': 'image/svg+xml'
+  }
+  return mimeTypes[ext] || 'image/png'
 }
 
 function generateUUID(): string {

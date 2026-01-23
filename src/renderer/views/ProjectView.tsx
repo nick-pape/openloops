@@ -32,6 +32,24 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     loadProject()
   }, [projectId])
 
+  // Listen for global hotkey trigger
+  useEffect(() => {
+    const handleTriggerUpload = () => {
+      console.log('[ProjectView] Global hotkey triggered, opening file picker')
+      handleUploadImage()
+    }
+
+    if (window.electron.onTriggerImageUpload) {
+      window.electron.onTriggerImageUpload(handleTriggerUpload)
+    }
+
+    return () => {
+      if (window.electron.offTriggerImageUpload) {
+        window.electron.offTriggerImageUpload(handleTriggerUpload)
+      }
+    }
+  }, [projectId]) // Re-register when project changes
+
   const loadProject = async () => {
     setLoading(true)
     try {
@@ -273,6 +291,49 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     })
   }
 
+  const handleUploadImage = async () => {
+    try {
+      // Open file picker
+      const filePath = await window.electron.files.selectImage()
+
+      if (!filePath) {
+        // User cancelled
+        return
+      }
+
+      // Read the file
+      const fileBuffer = await window.electron.files.readImage(filePath)
+
+      // Get filename for initial title
+      const filename = filePath.split(/[\\/]/).pop() || 'Image'
+
+      // Determine extension
+      const extension = filename.split('.').pop() || 'png'
+
+      // Save image to project
+      const savedPath = await window.electron.files.saveImage(projectId, fileBuffer, extension)
+
+      // Create image capture with filename as title
+      const capture = await window.electron.captures.create({
+        projectId,
+        type: 'image',
+        title: filename,
+        filePath: savedPath
+      })
+
+      // Enqueue image description job (will update title if LLM is configured)
+      // This is fire-and-forget, the title will update in the background
+      await window.electron.images.requestDescription(capture.id, savedPath)
+      console.log('Image description job enqueued for capture:', capture.id)
+
+      // Reload project to show new capture
+      await loadProject()
+    } catch (error) {
+      console.error('Failed to upload image:', error)
+      alert('Failed to upload image')
+    }
+  }
+
   const filteredCaptures = captures.filter(c => {
     if (filterType !== 'all' && c.type !== filterType) return false
     return true
@@ -350,6 +411,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                 </select>
               </div>
               <div className="capture-actions">
+                <button onClick={handleUploadImage}>📷 Image</button>
                 <button onClick={() => setShowTextModal(true)}>+ Text</button>
                 <button onClick={isRecording ? handleStopRecording : handleStartRecording}>
                   {isRecording ? '⏹ Stop' : '🎤 Record'}

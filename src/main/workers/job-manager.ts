@@ -55,6 +55,18 @@ export class JobManager {
     this.processPendingJobs()
   }
 
+  async enqueueImageDescription(captureId: string, imagePath: string) {
+    console.log('[JobManager] Enqueueing image-description job for capture:', captureId)
+    const jobId = await repository.enqueueJob('image-description', {
+      captureId,
+      imagePath
+    })
+    console.log('[JobManager] Image-description job enqueued with ID:', jobId)
+
+    // Trigger immediate processing
+    this.processPendingJobs()
+  }
+
   private async processPendingJobs() {
     if (this.isProcessing) {
       return
@@ -68,12 +80,15 @@ export class JobManager {
 
       // Process summary jobs
       await this.processJobType('summary')
+
+      // Process image-description jobs
+      await this.processJobType('image-description')
     } finally {
       this.isProcessing = false
     }
   }
 
-  private async processJobType(type: 'transcription' | 'summary') {
+  private async processJobType(type: 'transcription' | 'summary' | 'image-description') {
     const job = await repository.getNextPendingJob(type)
 
     if (!job) {

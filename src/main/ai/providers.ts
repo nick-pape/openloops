@@ -10,6 +10,7 @@ export interface TranscriptionProvider {
 export interface LLMProvider {
   name: string
   generateSummary(prompt: string, context: string): Promise<string>
+  generateImageTitle(imageBase64: string, mimeType: string): Promise<string>
 }
 
 // Remote Transcription Provider (OpenAI Whisper API)
@@ -131,6 +132,44 @@ export class RemoteLLMProvider implements LLMProvider {
     const data = await response.json()
     return data.choices[0].message.content
   }
+
+  async generateImageTitle(imageBase64: string, mimeType: string): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Describe this image in 5-10 words as a title. Be concise and specific about what you see.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${imageBase64}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 50
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Image title generation failed: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.choices[0].message.content.trim()
+  }
 }
 
 // Disabled LLM Provider (local fallback)
@@ -154,6 +193,11 @@ export class DisabledLLMProvider implements LLMProvider {
 **Recent Items:**
 ${lines.slice(0, 10).join('\n')}
 `
+  }
+
+  async generateImageTitle(_imageBase64: string, _mimeType: string): Promise<string> {
+    // No-op: return empty string, caller will keep the filename
+    return ''
   }
 }
 

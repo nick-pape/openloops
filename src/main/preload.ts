@@ -22,6 +22,7 @@ const api = {
 
   // Files
   files: {
+    selectImage: () => ipcRenderer.invoke('files:selectImage'),
     saveImage: (projectId: string, arrayBuffer: ArrayBuffer, extension: string) =>
       ipcRenderer.invoke('files:saveImage', projectId, arrayBuffer, extension),
     saveAudio: (projectId: string, arrayBuffer: ArrayBuffer) =>
@@ -33,6 +34,12 @@ const api = {
   audio: {
     requestTranscription: (captureId: string, audioFilePath: string) =>
       ipcRenderer.invoke('audio:requestTranscription', captureId, audioFilePath)
+  },
+
+  // Images
+  images: {
+    requestDescription: (captureId: string, imagePath: string) =>
+      ipcRenderer.invoke('images:requestDescription', captureId, imagePath)
   },
 
   // Summaries
@@ -85,6 +92,14 @@ const api = {
 
   transcription: {
     testConnection: (baseUrl: string, apiKey: string) => ipcRenderer.invoke('transcription:testConnection', baseUrl, apiKey)
+  },
+
+  // Event listeners for main → renderer communication
+  onTriggerImageUpload: (callback: () => void) => {
+    ipcRenderer.on('trigger-image-upload', callback)
+  },
+  offTriggerImageUpload: (callback: () => void) => {
+    ipcRenderer.removeListener('trigger-image-upload', callback)
   }
 }
 

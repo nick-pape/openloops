@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, globalShortcut } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { initDatabase, closeDatabase } from './db/database'
@@ -97,6 +97,28 @@ app.whenReady().then(() => {
   createMenu()
   createWindow()
 
+  // Register global hotkey for image upload
+  const success = globalShortcut.register('CommandOrControl+Shift+I', () => {
+    console.log('[Global Hotkey] Image upload triggered (Ctrl+Shift+I)')
+
+    if (mainWindow) {
+      // Bring app to foreground
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.focus()
+
+      // Trigger image upload via IPC
+      mainWindow.webContents.send('trigger-image-upload')
+    }
+  })
+
+  if (!success) {
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+I')
+  } else {
+    console.log('[Global Hotkey] Registered Ctrl+Shift+I for image upload')
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -113,6 +135,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  globalShortcut.unregisterAll()
   jobManager.stop()
   closeDatabase()
 })
@@ -206,11 +229,34 @@ function setupIPC() {
     return buffer.buffer
   })
 
+  ipcMain.handle('files:selectImage', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{
+        name: 'Images',
+        extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']
+      }]
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+
   // Audio transcription
   ipcMain.handle('audio:requestTranscription', async (_, captureId: string, audioFilePath: string) => {
     const transcriptionId = await repository.createTranscription(captureId, 'pending')
     await jobManager.enqueueTranscription(captureId, audioFilePath)
     return transcriptionId
+  })
+
+  // Image description
+  ipcMain.handle('images:requestDescription', async (_, captureId: string, imagePath: string) => {
+    console.log('[Images] Requesting description for capture:', captureId)
+    await jobManager.enqueueImageDescription(captureId, imagePath)
+    console.log('[Images] Image description job enqueued')
   })
 
   // Project summaries
