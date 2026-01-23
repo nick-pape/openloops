@@ -1,0 +1,152 @@
+import { parentPort } from 'worker_threads'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { eq } from 'drizzle-orm'
+import * as schema from '../db/schema'
+import {
+  ProviderFactory,
+  TranscriptionProvider,
+  LLMProvider
+} from '../ai/providers'
+import fs from 'fs'
+
+console.log('[Job Worker] Worker thread started')
+
+interface JobMessage {
+  type: 'transcription' | 'summary'
+  jobId: string
+  payload: any
+  dbPath: string
+  config: any
+}
+
+let transcriptionProvider: TranscriptionProvider | null = null
+let llmProvider: LLMProvider | null = null
+
+parentPort?.on('message', async (message: JobMessage) => {
+  console.log('[Job Worker] Received job:', message.type, 'ID:', message.jobId)
+  const { type, jobId, payload, dbPath, config } = message
+
+  try {
+    // Initialize database connection
+    const sqlite = new Database(dbPath)
+    const db = drizzle(sqlite, { schema })
+
+    // Update job status to processing
+    await db.update(schema.jobQueue)
+      .set({ status: 'processing', updatedAt: new Date() })
+      .where(eq(schema.jobQueue.id, jobId))
+
+    let result: string
+
+    if (type === 'transcription') {
+      result = await handleTranscription(payload, config, db)
+    } else if (type === 'summary') {
+      result = await handleSummary(payload, config, db)
+    } else {
+      throw new Error(`Unknown job type: ${type}`)
+    }
+
+    // Update job status to done
+    await db.update(schema.jobQueue)
+      .set({ status: 'done', result, updatedAt: new Date() })
+      .where(eq(schema.jobQueue.id, jobId))
+
+    sqlite.close()
+
+    console.log('[Job Worker] Job completed successfully:', jobId)
+    parentPort?.postMessage({ success: true, jobId, result })
+  } catch (error: any) {
+    console.error('[Job Worker] Job failed:', jobId, error.message)
+    // Update job status to error
+    try {
+      const sqlite = new Database(dbPath)
+      const db = drizzle(sqlite, { schema })
+
+      await db.update(schema.jobQueue)
+        .set({
+          status: 'error',
+          errorMessage: error.message,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.jobQueue.id, jobId))
+
+      sqlite.close()
+    } catch (dbError) {
+      console.error('Failed to update job error status:', dbError)
+    }
+
+    parentPort?.postMessage({ success: false, jobId, error: error.message })
+  }
+})
+
+async function handleTranscription(
+  payload: { captureId: string; audioFilePath: string },
+  config: any,
+  db: any
+): Promise<string> {
+  const factory = new ProviderFactory()
+
+  if (!transcriptionProvider) {
+    transcriptionProvider = factory.createTranscriptionProvider(config.transcription)
+  }
+
+  if (!fs.existsSync(payload.audioFilePath)) {
+    throw new Error(`Audio file not found: ${payload.audioFilePath}`)
+  }
+
+  const text = await transcriptionProvider.transcribe(payload.audioFilePath)
+
+  // Update transcription record
+  await db.update(schema.transcriptions)
+    .set({ status: 'done', text, updatedAt: new Date() })
+    .where(eq(schema.transcriptions.captureId, payload.captureId))
+
+  return text
+}
+
+async function handleSummary(
+  payload: { projectId: string; context: string; prompt: string },
+  config: any,
+  db: any
+): Promise<string> {
+  console.log('[Job Worker] Handling summary job')
+  console.log('[Job Worker] LLM config:', config.llm)
+
+  const factory = new ProviderFactory()
+
+  if (!llmProvider) {
+    console.log('[Job Worker] Creating LLM provider...')
+    llmProvider = factory.createLLMProvider(config.llm)
+    console.log('[Job Worker] LLM provider created:', llmProvider.name)
+  }
+
+  console.log('[Job Worker] Generating summary...')
+  const summary = await llmProvider.generateSummary(payload.prompt, payload.context)
+  console.log('[Job Worker] Summary generated, length:', summary.length)
+
+  // Store summary in project_summaries
+  const windowEnd = new Date()
+  const windowStart = new Date(windowEnd.getTime() - 14 * 24 * 60 * 60 * 1000) // 14 days ago
+
+  const summaryId = generateUUID()
+  await db.insert(schema.projectSummaries).values({
+    id: summaryId,
+    projectId: payload.projectId,
+    summaryMd: summary,
+    provider: llmProvider.name,
+    sourceWindowStart: windowStart,
+    sourceWindowEnd: windowEnd,
+    createdAt: new Date()
+  })
+
+  return summary
+}
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}

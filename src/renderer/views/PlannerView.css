@@ -1,0 +1,152 @@
+.planner-view {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.planner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.planner-header h1 {
+  font-size: 2rem;
+  color: #333;
+}
+
+.planner-header input[type="date"] {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.planner-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.planner-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  font-size: 1.25rem;
+  color: #333;
+}
+
+.section-header div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ics-input-panel {
+  background: white;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.ics-input-panel textarea {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  font-family: monospace;
+  font-size: 0.875rem;
+}
+
+.events-list,
+.tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.event-card,
+.task-card {
+  background: white;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.event-card strong,
+.task-card strong {
+  display: block;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.event-time,
+.task-meta {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #999;
+  font-style: italic;
+}
+
+.plan-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.blocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.block-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 4px;
+  border-left: 4px solid #007bff;
+}
+
+.block-time {
+  font-weight: 600;
+  color: #007bff;
+  margin-bottom: 0.5rem;
+}
+
+.block-label {
+  font-size: 1rem;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.block-notes {
+  font-size: 0.875rem;
+  color: #666;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.block-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.block-actions button {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+}
