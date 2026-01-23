@@ -4,6 +4,7 @@ import * as schema from './schema'
 import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { runMigrations as runSchemaMigrations } from './migrations'
 
 let db: ReturnType<typeof drizzle>
 let sqlite: Database.Database
@@ -28,7 +29,7 @@ export function initDatabase() {
 }
 
 function runMigrations() {
-  // Run initial schema creation
+  // Run initial schema creation (for fresh databases)
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
@@ -116,7 +117,7 @@ function runMigrations() {
 
     CREATE TABLE IF NOT EXISTS job_queue (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL CHECK(type IN ('transcription', 'summary')),
+      type TEXT NOT NULL CHECK(type IN ('transcription', 'summary', 'image-description')),
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'done', 'error')),
       payload TEXT NOT NULL,
       result TEXT,
@@ -138,6 +139,9 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_calendar_events_date ON calendar_events(start_dt, end_dt);
     CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status, type);
   `)
+
+  // Run schema migrations (for existing databases)
+  runSchemaMigrations(sqlite)
 }
 
 export function getDatabase() {

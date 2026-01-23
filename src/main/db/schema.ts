@@ -87,7 +87,7 @@ export const dayPlanBlocks = sqliteTable('day_plan_blocks', {
 
 export const jobQueue = sqliteTable('job_queue', {
   id: text('id').primaryKey(),
-  type: text('type', { enum: ['transcription', 'summary'] }).notNull(),
+  type: text('type', { enum: ['transcription', 'summary', 'image-description'] }).notNull(),
   status: text('status', { enum: ['pending', 'processing', 'done', 'error'] }).notNull().default('pending'),
   payload: text('payload').notNull(),
   result: text('result'),
