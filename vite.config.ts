@@ -18,7 +18,7 @@ export default defineConfig({
             outDir: 'dist-electron',
             sourcemap: true,
             rollupOptions: {
-              external: ['better-sqlite3', 'keytar', 'electron']
+              external: ['better-sqlite3', 'keytar', 'electron', 'sharp']
             }
           }
         }
@@ -42,7 +42,7 @@ export default defineConfig({
             outDir: 'dist-electron',
             sourcemap: true,
             rollupOptions: {
-              external: ['better-sqlite3', 'electron']
+              external: ['better-sqlite3', 'electron', 'sharp']
             }
           }
         }
