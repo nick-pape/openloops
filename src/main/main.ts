@@ -263,7 +263,14 @@ function setupIPC() {
   // Audio transcription
   ipcMain.handle('audio:requestTranscription', async (_, captureId: string, audioFilePath: string) => {
     const transcriptionId = await repository.createTranscription(captureId, 'pending')
-    await jobManager.enqueueTranscription(captureId, audioFilePath)
+    const jobId = await jobManager.enqueueTranscription(captureId, audioFilePath)
+
+    // Emit event to renderer with newly created job
+    const job = await repository.getJob(jobId)
+    if (job && mainWindow) {
+      mainWindow.webContents.send('job:updated', job)
+    }
+
     return transcriptionId
   })
 
@@ -295,8 +302,14 @@ function setupIPC() {
       fs.writeFileSync(resizedPath, resizedBuffer)
 
       // Enqueue job with resized image path
-      await jobManager.enqueueImageDescription(captureId, resizedPath)
+      const jobId = await jobManager.enqueueImageDescription(captureId, resizedPath)
       console.log('[Images] Image description job enqueued')
+
+      // Emit event to renderer with newly created job
+      const job = await repository.getJob(jobId)
+      if (job && mainWindow) {
+        mainWindow.webContents.send('job:updated', job)
+      }
     } catch (error) {
       console.error('[Images] Failed to resize image:', error)
       throw new Error(`Failed to prepare image for description: ${error.message}`)
@@ -347,8 +360,14 @@ function setupIPC() {
 Keep it concise and actionable.`
 
       console.log('Enqueueing summary job...')
-      await jobManager.enqueueSummary(projectId, context, prompt)
+      const jobId = await jobManager.enqueueSummary(projectId, context, prompt)
       console.log('Summary job enqueued successfully')
+
+      // Emit event to renderer with newly created job
+      const job = await repository.getJob(jobId)
+      if (job && mainWindow) {
+        mainWindow.webContents.send('job:updated', job)
+      }
     } catch (error) {
       console.error('Error in summaries:generate handler:', error)
       throw error

@@ -38,7 +38,7 @@ export class JobManager {
     }
   }
 
-  async enqueueTranscription(captureId: string, audioFilePath: string) {
+  async enqueueTranscription(captureId: string, audioFilePath: string): Promise<string> {
     console.log('[JobManager] Enqueueing transcription job for capture:', captureId)
     const jobId = await repository.enqueueJob('transcription', {
       captureId,
@@ -48,9 +48,11 @@ export class JobManager {
 
     // Trigger immediate processing
     this.processPendingJobs()
+
+    return jobId
   }
 
-  async enqueueSummary(projectId: string, context: string, prompt: string) {
+  async enqueueSummary(projectId: string, context: string, prompt: string): Promise<string> {
     console.log('[JobManager] Enqueueing summary job for project:', projectId)
     const jobId = await repository.enqueueJob('summary', {
       projectId,
@@ -61,9 +63,11 @@ export class JobManager {
 
     // Trigger immediate processing
     this.processPendingJobs()
+
+    return jobId
   }
 
-  async enqueueImageDescription(captureId: string, imagePath: string) {
+  async enqueueImageDescription(captureId: string, imagePath: string): Promise<string> {
     console.log('[JobManager] Enqueueing image-description job for capture:', captureId)
     const jobId = await repository.enqueueJob('image-description', {
       captureId,
@@ -73,6 +77,8 @@ export class JobManager {
 
     // Trigger immediate processing
     this.processPendingJobs()
+
+    return jobId
   }
 
   private async processPendingJobs() {
