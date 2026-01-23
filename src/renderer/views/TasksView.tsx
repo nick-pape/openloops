@@ -116,6 +116,16 @@ export function TasksView() {
     }
   }
 
+  const handleStartWorkMode = async (task: Task) => {
+    try {
+      await window.electron.workMode.setActiveTask(task.id)
+      await window.electron.workMode.openWindow()
+    } catch (error) {
+      console.error('Failed to start work mode:', error)
+      alert('Failed to start work mode')
+    }
+  }
+
   const resetForm = () => {
     setTaskTitle('')
     setTaskProjectId('')
@@ -202,6 +212,7 @@ export function TasksView() {
                   onToggle={handleToggleTaskStatus}
                   onEdit={handleEditTask}
                   onDelete={handleDeleteTask}
+                  onStartWorkMode={handleStartWorkMode}
                 />
               ))}
             </div>
@@ -227,6 +238,7 @@ export function TasksView() {
                     onToggle={handleToggleTaskStatus}
                     onEdit={handleEditTask}
                     onDelete={handleDeleteTask}
+                    onStartWorkMode={handleStartWorkMode}
                   />
                 ))}
               </div>
@@ -328,9 +340,10 @@ interface TaskCardProps {
   onToggle: (task: Task) => void
   onEdit: (task: Task) => void
   onDelete: (task: Task) => void
+  onStartWorkMode: (task: Task) => void
 }
 
-function TaskCard({ task, projectName, onToggle, onEdit, onDelete }: TaskCardProps) {
+function TaskCard({ task, projectName, onToggle, onEdit, onDelete, onStartWorkMode }: TaskCardProps) {
   return (
     <div className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
       <div className="task-card-header">
@@ -349,6 +362,11 @@ function TaskCard({ task, projectName, onToggle, onEdit, onDelete }: TaskCardPro
         <span className="task-estimate">{task.estimateMinutes} min</span>
 
         <div className="task-actions">
+          {task.status === 'open' && (
+            <button className="icon-btn work-mode" onClick={() => onStartWorkMode(task)} title="Start Work Mode">
+              ▶️
+            </button>
+          )}
           <button className="icon-btn" onClick={() => onEdit(task)} title="Edit">
             ✏️
           </button>

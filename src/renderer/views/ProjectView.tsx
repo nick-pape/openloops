@@ -443,6 +443,16 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }
 
+  const handleStartWorkMode = async (task: Task) => {
+    try {
+      await window.electron.workMode.setActiveTask(task.id)
+      await window.electron.workMode.openWindow()
+    } catch (error) {
+      console.error('Failed to start work mode:', error)
+      alert('Failed to start work mode')
+    }
+  }
+
   const resetTaskForm = () => {
     setTaskTitle('')
     setTaskEstimate(30)
@@ -804,6 +814,11 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                     <span className="task-estimate">{task.estimateMinutes} min</span>
 
                     <div className="task-actions">
+                      {task.status === 'open' && (
+                        <button className="icon-btn work-mode" onClick={() => handleStartWorkMode(task)} title="Start Work Mode">
+                          ▶️
+                        </button>
+                      )}
                       <button className="icon-btn" onClick={() => handleEditTask(task)} title="Edit">
                         ✏️
                       </button>
