@@ -339,6 +339,10 @@ Keep it concise and actionable.`
     await repository.clearCompletedJobs()
   })
 
+  ipcMain.handle('jobs:clearAll', async () => {
+    await repository.clearAllJobs()
+  })
+
   // Tasks
   ipcMain.handle('tasks:getOpen', async (_, projectId?: string) => {
     return repository.getOpenTasks(projectId)

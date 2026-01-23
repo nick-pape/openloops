@@ -453,6 +453,11 @@ export class Repository {
       .where(eq(schema.jobQueue.status, 'done'))
   }
 
+  async clearAllJobs() {
+    const db = getDatabase()
+    await db.delete(schema.jobQueue)
+  }
+
   // Settings
   async getSetting(key: string): Promise<string | null> {
     const db = getDatabase()

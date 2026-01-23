@@ -16,7 +16,26 @@
   font-size: 2rem;
 }
 
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .clear-button {
+  padding: 0.5rem 1rem;
+  background: #f59e0b;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.clear-button:hover {
+  background: #d97706;
+}
+
+.clear-all-button {
   padding: 0.5rem 1rem;
   background: #ef4444;
   color: white;
@@ -26,7 +45,7 @@
   font-size: 0.875rem;
 }
 
-.clear-button:hover {
+.clear-all-button:hover {
   background: #dc2626;
 }
 

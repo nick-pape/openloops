@@ -2,7 +2,7 @@ import { useJobs } from '../contexts/JobsContext'
 import './JobsView.css'
 
 export function JobsView() {
-  const { jobs, clearCompleted } = useJobs()
+  const { jobs, clearCompleted, clearAll } = useJobs()
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -52,9 +52,14 @@ export function JobsView() {
     <div className="jobs-view">
       <div className="jobs-header">
         <h1>🤖 AI Jobs</h1>
-        <button onClick={clearCompleted} className="clear-button">
-          Clear Completed
-        </button>
+        <div className="button-group">
+          <button onClick={clearCompleted} className="clear-button">
+            Clear Completed
+          </button>
+          <button onClick={clearAll} className="clear-all-button">
+            Clear All
+          </button>
+        </div>
       </div>
 
       <div className="jobs-stats">

@@ -19,6 +19,7 @@ interface JobsContextValue {
   pendingCount: number
   reload: () => Promise<void>
   clearCompleted: () => Promise<void>
+  clearAll: () => Promise<void>
 }
 
 const JobsContext = createContext<JobsContextValue | null>(null)
@@ -66,8 +67,13 @@ export function JobsProvider({ children }: { children: ReactNode }) {
     await loadJobs()
   }
 
+  const clearAll = async () => {
+    await window.electron.jobs.clearAll()
+    await loadJobs()
+  }
+
   return (
-    <JobsContext.Provider value={{ jobs, pendingCount, reload: loadJobs, clearCompleted }}>
+    <JobsContext.Provider value={{ jobs, pendingCount, reload: loadJobs, clearCompleted, clearAll }}>
       {children}
     </JobsContext.Provider>
   )

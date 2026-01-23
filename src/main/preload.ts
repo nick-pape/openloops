@@ -98,7 +98,8 @@ const api = {
   jobs: {
     getAll: () => ipcRenderer.invoke('jobs:getAll'),
     getByProject: (projectId: string) => ipcRenderer.invoke('jobs:getByProject', projectId),
-    clear: () => ipcRenderer.invoke('jobs:clear')
+    clear: () => ipcRenderer.invoke('jobs:clear'),
+    clearAll: () => ipcRenderer.invoke('jobs:clearAll')
   },
 
   // Event listeners for main → renderer communication
