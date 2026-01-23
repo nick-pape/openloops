@@ -31,6 +31,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   // Subscribe to jobs context for this project
   const { jobs } = useJobs({ projectId })
+  const processedJobIds = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     loadProject()
@@ -38,23 +39,29 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   // Listen for job completions and auto-reload relevant data
   useEffect(() => {
-    const completedJobs = jobs.filter(j => j.status === 'done')
+    // Find newly completed jobs that we haven't processed yet
+    const newlyCompletedJobs = jobs.filter(
+      j => j.status === 'done' && !processedJobIds.current.has(j.id)
+    )
 
-    if (completedJobs.length === 0) return
+    if (newlyCompletedJobs.length === 0) return
 
-    // Check most recent completed job
-    const latestCompleted = completedJobs[completedJobs.length - 1]
+    // Process each newly completed job
+    for (const job of newlyCompletedJobs) {
+      console.log('[ProjectView] New job completed:', job.id, job.type)
+      processedJobIds.current.add(job.id)
 
-    if (latestCompleted.type === 'image-description') {
-      console.log('[ProjectView] Image description completed, reloading captures')
-      loadCaptures()
-    } else if (latestCompleted.type === 'summary') {
-      console.log('[ProjectView] Summary completed, reloading summary')
-      loadSummary()
-      setGeneratingSummary(false)
-    } else if (latestCompleted.type === 'transcription') {
-      console.log('[ProjectView] Transcription completed, reloading captures')
-      loadCaptures()
+      if (job.type === 'image-description') {
+        console.log('[ProjectView] Image description completed, reloading captures')
+        loadCaptures()
+      } else if (job.type === 'summary') {
+        console.log('[ProjectView] Summary completed, reloading summary')
+        loadSummary()
+        setGeneratingSummary(false)
+      } else if (job.type === 'transcription') {
+        console.log('[ProjectView] Transcription completed, reloading captures')
+        loadCaptures()
+      }
     }
   }, [jobs])
 
@@ -77,10 +84,17 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   }
 
   // Listen for global hotkey trigger
+  // Store reference to latest handleUploadImage
+  const handleUploadImageRef = useRef<(() => Promise<void>) | null>(null)
+
+  useEffect(() => {
+    handleUploadImageRef.current = handleUploadImage
+  })
+
   useEffect(() => {
     const handleTriggerUpload = () => {
       console.log('[ProjectView] Global hotkey triggered, opening file picker')
-      handleUploadImage()
+      handleUploadImageRef.current?.()
     }
 
     if (window.electron.onTriggerImageUpload) {
@@ -92,7 +106,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         window.electron.offTriggerImageUpload(handleTriggerUpload)
       }
     }
-  }, [projectId]) // Re-register when project changes
+  }, []) // Only register once, use ref for latest function
 
   const loadProject = async () => {
     setLoading(true)
