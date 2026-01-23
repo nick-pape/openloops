@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Project } from '../../types'
+import { useJobs } from '../contexts/JobsContext'
 import './Sidebar.css'
 
 interface SidebarProps {
@@ -7,6 +8,7 @@ interface SidebarProps {
   currentView: { type: string; projectId?: string }
   onSelectProject: (id: string) => void
   onSelectPlanner: () => void
+  onSelectJobs: () => void
   onSelectSettings: () => void
   onCreateProject: (name: string) => void
 }
@@ -16,11 +18,13 @@ export function Sidebar({
   currentView,
   onSelectProject,
   onSelectPlanner,
+  onSelectJobs,
   onSelectSettings,
   onCreateProject
 }: SidebarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
+  const { pendingCount } = useJobs()
 
   const handleCreate = () => {
     if (newProjectName.trim()) {
@@ -76,6 +80,15 @@ export function Sidebar({
               onClick={onSelectPlanner}
             >
               Today Planner
+            </button>
+            <button
+              className={`sidebar-item ${currentView.type === 'jobs' ? 'active' : ''}`}
+              onClick={onSelectJobs}
+            >
+              <span>AI Jobs</span>
+              {pendingCount > 0 && (
+                <span className="badge">{pendingCount}</span>
+              )}
             </button>
             <button
               className={`sidebar-item ${currentView.type === 'settings' ? 'active' : ''}`}

@@ -67,6 +67,10 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .sidebar-item:hover {
@@ -77,6 +81,21 @@
 .sidebar-item.active {
   background: #007bff;
   color: white;
+}
+
+.sidebar-item .badge {
+  background: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.sidebar-item.active .badge {
+  background: #dc2626;
 }
 
 .sidebar-empty {

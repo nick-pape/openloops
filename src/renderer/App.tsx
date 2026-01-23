@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { ProjectView } from './views/ProjectView'
 import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
+import { JobsView } from './views/JobsView'
 import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
 import './App.css'
@@ -11,6 +12,7 @@ type View =
   | { type: 'welcome' }
   | { type: 'project'; projectId: string }
   | { type: 'planner' }
+  | { type: 'jobs' }
   | { type: 'settings' }
 
 function App() {
@@ -48,6 +50,7 @@ function App() {
           currentView={currentView}
           onSelectProject={(id) => setCurrentView({ type: 'project', projectId: id })}
           onSelectPlanner={() => setCurrentView({ type: 'planner' })}
+          onSelectJobs={() => setCurrentView({ type: 'jobs' })}
           onSelectSettings={() => setCurrentView({ type: 'settings' })}
           onCreateProject={handleCreateProject}
         />
@@ -65,6 +68,7 @@ function App() {
             />
           )}
           {currentView.type === 'planner' && <PlannerView />}
+          {currentView.type === 'jobs' && <JobsView />}
           {currentView.type === 'settings' && <SettingsView />}
         </main>
       </div>
