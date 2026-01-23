@@ -42,6 +42,14 @@ const api = {
       ipcRenderer.invoke('images:requestDescription', captureId, imagePath)
   },
 
+  // Screenshots
+  screenshot: {
+    snip: (projectId: string) => ipcRenderer.invoke('screenshot:snip', projectId),
+    getSources: () => ipcRenderer.invoke('screenshot:getSources'),
+    captureSource: (sourceId: string, projectId: string, sourceName: string) =>
+      ipcRenderer.invoke('screenshot:captureSource', sourceId, projectId, sourceName)
+  },
+
   // Summaries
   summaries: {
     getLatest: (projectId: string) => ipcRenderer.invoke('summaries:getLatest', projectId),
@@ -108,6 +116,12 @@ const api = {
   },
   offTriggerImageUpload: (callback: () => void) => {
     ipcRenderer.removeListener('trigger-image-upload', callback)
+  },
+  onTriggerScreenshot: (callback: () => void) => {
+    ipcRenderer.on('trigger-screenshot', callback)
+  },
+  offTriggerScreenshot: (callback: () => void) => {
+    ipcRenderer.removeListener('trigger-screenshot', callback)
   },
   onJobUpdated: (callback: (job: any) => void) => {
     ipcRenderer.on('job:updated', (_event, job) => callback(job))

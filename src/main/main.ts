@@ -6,6 +6,7 @@ import { repository } from './db/repository'
 import { jobManager } from './workers/job-manager'
 import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
+import { screenshotHandler } from './screenshot/screenshot-handler'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -124,6 +125,28 @@ app.whenReady().then(async () => {
     console.log('[Global Hotkey] Registered Ctrl+Shift+U for image upload')
   }
 
+  // Register global hotkey for screenshot (Ctrl+Shift+S)
+  const screenshotSuccess = globalShortcut.register('CommandOrControl+Shift+S', () => {
+    console.log('[Global Hotkey] Screenshot triggered (Ctrl+Shift+S)')
+
+    if (mainWindow) {
+      // Bring app to foreground
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.focus()
+
+      // Trigger screenshot via IPC
+      mainWindow.webContents.send('trigger-screenshot')
+    }
+  })
+
+  if (!screenshotSuccess) {
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+S')
+  } else {
+    console.log('[Global Hotkey] Registered Ctrl+Shift+S for screenshot')
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -141,9 +164,29 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   globalShortcut.unregisterAll()
+  screenshotHandler.cleanup()
   jobManager.stop()
   closeDatabase()
 })
+
+/**
+ * Helper function to save an image buffer to disk
+ */
+async function saveImageFromBuffer(projectId: string, buffer: Buffer, extension: string): Promise<string> {
+  const userDataPath = app.getPath('userData')
+  const imagesDir = path.join(userDataPath, 'app-data', 'images', projectId)
+
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true })
+  }
+
+  const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`
+  const filePath = path.join(imagesDir, filename)
+
+  fs.writeFileSync(filePath, buffer)
+
+  return filePath
+}
 
 function setupIPC() {
   // Projects
@@ -310,9 +353,61 @@ function setupIPC() {
       if (job && mainWindow) {
         mainWindow.webContents.send('job:updated', job)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Images] Failed to resize image:', error)
       throw new Error(`Failed to prepare image for description: ${error.message}`)
+    }
+  })
+
+  // Screenshot capture
+  ipcMain.handle('screenshot:snip', async (_, projectId: string) => {
+    console.log('[Screenshot] Initiating Snipping Tool capture for project:', projectId)
+
+    try {
+      const result = await screenshotHandler.captureWithSnippingTool()
+
+      if (!result) {
+        console.log('[Screenshot] Capture cancelled or timed out')
+        return null
+      }
+
+      console.log('[Screenshot] Screenshot captured, saving...')
+
+      // Save screenshot to disk
+      const filePath = await saveImageFromBuffer(projectId, result.buffer, result.extension)
+      console.log('[Screenshot] Saved to:', filePath)
+
+      return {
+        filePath,
+        metadata: result.metadata
+      }
+    } catch (error) {
+      console.error('[Screenshot] Capture failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('screenshot:getSources', async () => {
+    console.log('[Screenshot] Getting desktop sources...')
+
+    try {
+      const sources = await screenshotHandler.getDesktopSources()
+      console.log('[Screenshot] Found', sources.length, 'sources')
+      return sources
+    } catch (error) {
+      console.error('[Screenshot] Failed to get sources:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('screenshot:captureSource', async (_, sourceId: string, _projectId: string, sourceName: string) => {
+    console.log('[Screenshot] Capture requested for source:', sourceId)
+
+    // Note: Actual capture happens in renderer using getUserMedia
+    // This handler is reserved for future use if we need to process the capture in main process
+    return {
+      sourceId,
+      sourceName
     }
   })
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Project, Capture, ProjectSummary, Transcription } from '../../types'
+import { Project, Capture, ProjectSummary, Transcription, DesktopSource } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
 import './ProjectView.css'
 
@@ -25,6 +25,9 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [editBody, setEditBody] = useState('')
   const [activeTab, setActiveTab] = useState<'summary' | 'captures'>('summary')
   const [expandedCaptures, setExpandedCaptures] = useState<Set<string>>(new Set())
+  const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false)
+  const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [desktopSources, setDesktopSources] = useState<DesktopSource[]>([])
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -83,12 +86,14 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }
 
-  // Listen for global hotkey trigger
-  // Store reference to latest handleUploadImage
+  // Listen for global hotkey triggers
+  // Store references to latest handlers
   const handleUploadImageRef = useRef<(() => Promise<void>) | null>(null)
+  const handleScreenshotRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
     handleUploadImageRef.current = handleUploadImage
+    handleScreenshotRef.current = handleScreenshot
   })
 
   useEffect(() => {
@@ -97,13 +102,25 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       handleUploadImageRef.current?.()
     }
 
+    const handleTriggerScreenshot = () => {
+      console.log('[ProjectView] Global screenshot hotkey triggered')
+      handleScreenshotRef.current?.()
+    }
+
     if (window.electron.onTriggerImageUpload) {
       window.electron.onTriggerImageUpload(handleTriggerUpload)
+    }
+
+    if (window.electron.onTriggerScreenshot) {
+      window.electron.onTriggerScreenshot(handleTriggerScreenshot)
     }
 
     return () => {
       if (window.electron.offTriggerImageUpload) {
         window.electron.offTriggerImageUpload(handleTriggerUpload)
+      }
+      if (window.electron.offTriggerScreenshot) {
+        window.electron.offTriggerScreenshot(handleTriggerScreenshot)
       }
     }
   }, []) // Only register once, use ref for latest function
@@ -378,6 +395,164 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }
 
+  const handleScreenshot = async () => {
+    if (isCapturingScreenshot) return
+
+    setIsCapturingScreenshot(true)
+
+    try {
+      console.log('[Screenshot] Starting screenshot capture...')
+
+      // Detect platform
+      const isWindows = navigator.platform.toLowerCase().includes('win')
+
+      if (isWindows) {
+        // Windows: Use Snipping Tool with clipboard monitoring
+        console.log('[Screenshot] Using Windows Snipping Tool')
+        const result = await window.electron.screenshot.snip(projectId)
+
+        if (!result) {
+          console.log('[Screenshot] Capture cancelled or timed out, trying fallback...')
+          // Fall back to desktopCapturer
+          await handleScreenshotFallback()
+          return
+        }
+
+        console.log('[Screenshot] Screenshot captured:', result.filePath)
+
+        // Create capture with metadata
+        const capture = await window.electron.captures.create({
+          projectId,
+          type: 'image',
+          title: `Screenshot ${new Date().toLocaleString()}`,
+          filePath: result.filePath,
+          metadata: JSON.stringify(result.metadata)
+        })
+
+        console.log('[Screenshot] Capture created:', capture.id)
+
+        // Enqueue image description job
+        await window.electron.images.requestDescription(capture.id, result.filePath)
+        console.log('[Screenshot] Image description job enqueued')
+
+        // Reload captures
+        await loadCaptures()
+      } else {
+        // macOS/Linux: Use desktopCapturer source picker
+        console.log('[Screenshot] Using desktopCapturer (macOS/Linux)')
+        await handleScreenshotFallback()
+      }
+    } catch (error) {
+      console.error('[Screenshot] Error:', error)
+      alert(`Screenshot failed: ${error}`)
+    } finally {
+      setIsCapturingScreenshot(false)
+    }
+  }
+
+  const handleScreenshotFallback = async () => {
+    try {
+      console.log('[Screenshot] Getting desktop sources...')
+      const sources = await window.electron.screenshot.getSources()
+
+      if (sources.length === 0) {
+        alert('No screens or windows available for capture')
+        return
+      }
+
+      setDesktopSources(sources)
+      setShowSourcePicker(true)
+    } catch (error) {
+      console.error('[Screenshot] Failed to get sources:', error)
+      throw error
+    }
+  }
+
+  const handleCaptureSource = async (sourceId: string, sourceName: string) => {
+    setShowSourcePicker(false)
+
+    try {
+      console.log('[Screenshot] Capturing source:', sourceName)
+
+      // Use getUserMedia to capture the selected source
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId
+          }
+        } as any
+      })
+
+      // Capture a frame from the stream
+      const video = document.createElement('video')
+      video.srcObject = stream
+      video.autoplay = true
+
+      await new Promise((resolve) => {
+        video.onloadedmetadata = resolve
+      })
+
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Failed to get canvas context')
+      }
+
+      ctx.drawImage(video, 0, 0)
+
+      // Stop the stream
+      stream.getTracks().forEach(track => track.stop())
+
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b)
+        }, 'image/png')
+      })
+
+      const arrayBuffer = await blob.arrayBuffer()
+
+      // Save screenshot
+      const filePath = await window.electron.files.saveImage(projectId, arrayBuffer, 'png')
+      console.log('[Screenshot] Saved to:', filePath)
+
+      // Determine screenshot type
+      const screenshotType = sourceId.startsWith('screen') ? 'full-screen' : 'window'
+
+      // Create capture with metadata
+      const capture = await window.electron.captures.create({
+        projectId,
+        type: 'image',
+        title: `Screenshot: ${sourceName}`,
+        filePath,
+        metadata: JSON.stringify({
+          source: 'screenshot',
+          captureMethod: 'desktop-capturer',
+          screenshotType,
+          windowTitle: sourceName,
+          timestamp: new Date().toISOString()
+        })
+      })
+
+      console.log('[Screenshot] Capture created:', capture.id)
+
+      // Enqueue image description job
+      await window.electron.images.requestDescription(capture.id, filePath)
+      console.log('[Screenshot] Image description job enqueued')
+
+      // Reload captures
+      await loadCaptures()
+    } catch (error) {
+      console.error('[Screenshot] Capture source failed:', error)
+      alert(`Failed to capture screenshot: ${error}`)
+    }
+  }
+
   const filteredCaptures = captures.filter(c => {
     if (filterType !== 'all' && c.type !== filterType) return false
     return true
@@ -455,7 +630,10 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                 </select>
               </div>
               <div className="capture-actions">
-                <button onClick={handleUploadImage}>📷 Image</button>
+                <button onClick={handleScreenshot} disabled={isCapturingScreenshot}>
+                  {isCapturingScreenshot ? '⏳ Capturing...' : '📸 Screenshot'}
+                </button>
+                <button onClick={handleUploadImage}>🖼️ Image</button>
                 <button onClick={() => setShowTextModal(true)}>+ Text</button>
                 <button onClick={isRecording ? handleStopRecording : handleStartRecording}>
                   {isRecording ? '⏹ Stop' : '🎤 Record'}
@@ -546,6 +724,31 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
               </button>
               <button onClick={handleSaveEdit} disabled={!editTitle.trim()}>
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSourcePicker && (
+        <div className="modal-overlay" onClick={() => setShowSourcePicker(false)}>
+          <div className="modal source-picker-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Select a screen or window</h2>
+            <div className="source-grid">
+              {desktopSources.map((source) => (
+                <div
+                  key={source.id}
+                  className="source-item"
+                  onClick={() => handleCaptureSource(source.id, source.name)}
+                >
+                  <img src={source.thumbnail} alt={source.name} className="source-thumbnail" />
+                  <span className="source-name">{source.name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="secondary" onClick={() => setShowSourcePicker(false)}>
+                Cancel
               </button>
             </div>
           </div>

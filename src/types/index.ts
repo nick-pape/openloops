@@ -12,8 +12,28 @@ export interface Capture {
   title: string
   bodyText?: string
   filePath?: string
+  metadata?: string
   createdAt: Date
   isOpenLoop?: boolean
+}
+
+export interface CaptureMetadata {
+  source: string
+  captureMethod: 'native-snipping-tool' | 'desktop-capturer'
+  screenshotType?: 'snipping-tool' | 'full-screen' | 'window' | 'region'
+  windowTitle?: string
+  appName?: string
+  displayName?: string
+  timestamp: string
+}
+
+export interface DesktopSource {
+  id: string
+  name: string
+  thumbnail: string
+  type: 'screen' | 'window'
+  display_id?: string
+  appIcon?: string
 }
 
 export interface Transcription {
@@ -90,15 +110,32 @@ declare global {
         getByProject: (projectId: string) => Promise<Capture[]>
         create: (input: any) => Promise<Capture>
         toggleOpenLoop: (captureId: string) => Promise<void>
+        update: (id: string, title: string, bodyText: string) => Promise<Capture>
+        delete: (id: string) => Promise<void>
         getTranscription: (captureId: string) => Promise<Transcription | undefined>
       }
       files: {
+        selectImage: () => Promise<{ filePath: string; filename: string; buffer: ArrayBuffer } | null>
         saveImage: (projectId: string, arrayBuffer: ArrayBuffer, extension: string) => Promise<string>
         saveAudio: (projectId: string, arrayBuffer: ArrayBuffer) => Promise<string>
         readImage: (filePath: string) => Promise<ArrayBuffer>
       }
+      jobs: {
+        getAll: () => Promise<any[]>
+        getByProject: (projectId: string) => Promise<any[]>
+        clear: () => Promise<void>
+        clearAll: () => Promise<void>
+      }
       audio: {
         requestTranscription: (captureId: string, audioFilePath: string) => Promise<string>
+      }
+      images: {
+        requestDescription: (captureId: string, imagePath: string) => Promise<void>
+      }
+      screenshot: {
+        snip: (projectId: string) => Promise<{ filePath: string; metadata: CaptureMetadata } | null>
+        getSources: () => Promise<DesktopSource[]>
+        captureSource: (sourceId: string, projectId: string, sourceName: string) => Promise<{ sourceId: string; sourceName: string }>
       }
       summaries: {
         getLatest: (projectId: string) => Promise<ProjectSummary | undefined>
@@ -137,6 +174,12 @@ declare global {
       transcription: {
         testConnection: (baseUrl: string, apiKey: string) => Promise<{ success: boolean; message?: string; error?: string }>
       }
+      onTriggerImageUpload?: (callback: () => void) => void
+      offTriggerImageUpload?: (callback: () => void) => void
+      onTriggerScreenshot?: (callback: () => void) => void
+      offTriggerScreenshot?: (callback: () => void) => void
+      onJobUpdated?: (callback: (job: any) => void) => void
+      offJobUpdated?: (callback: (job: any) => void) => void
     }
   }
 }
