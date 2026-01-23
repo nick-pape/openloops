@@ -154,18 +154,22 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         const extension = file.name.split('.').pop() || 'png'
         const filePath = await window.electron.files.saveImage(projectId, arrayBuffer, extension)
 
-        await window.electron.captures.create({
+        const capture = await window.electron.captures.create({
           projectId,
           type: 'image',
           title: file.name,
           filePath
         })
+
+        // Enqueue image description job
+        await window.electron.images.requestDescription(capture.id, filePath)
+        console.log('[Drop] Image description job enqueued for:', file.name)
       } catch (error) {
-        console.error('Failed to save image:', error)
+        console.error('Failed to save dropped image:', error)
       }
     }
 
-    await loadProject()
+    await loadCaptures()
   }
 
   const handleImagePaste = async (e: React.ClipboardEvent) => {
@@ -194,18 +198,22 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         const extension = file.type.split('/')[1] || 'png'
         const filePath = await window.electron.files.saveImage(projectId, arrayBuffer, extension)
 
-        await window.electron.captures.create({
+        const capture = await window.electron.captures.create({
           projectId,
           type: 'image',
           title: `Pasted image ${new Date().toLocaleString()}`,
           filePath
         })
+
+        // Enqueue image description job
+        await window.electron.images.requestDescription(capture.id, filePath)
+        console.log('[Paste] Image description job enqueued')
       } catch (error) {
         console.error('Failed to save pasted image:', error)
       }
     }
 
-    await loadProject()
+    await loadCaptures()
   }
 
   const handleStartRecording = async () => {
@@ -346,10 +354,10 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       await window.electron.images.requestDescription(capture.id, savedPath)
       console.log('[handleUploadImage] Image description job enqueued')
 
-      // Reload project to show new capture
-      console.log('[handleUploadImage] Reloading project...')
-      await loadProject()
-      console.log('[handleUploadImage] Project reloaded successfully')
+      // Reload captures to show new image
+      console.log('[handleUploadImage] Reloading captures...')
+      await loadCaptures()
+      console.log('[handleUploadImage] Captures reloaded successfully')
     } catch (error) {
       console.error('[handleUploadImage] ERROR:', error)
       alert(`Failed to upload image: ${error}`)
