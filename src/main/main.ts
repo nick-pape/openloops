@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { initDatabase, closeDatabase } from './db/database'
 import { repository } from './db/repository'
+import { activeTaskService } from './work-mode/active-task-service'
 import { jobManager } from './workers/job-manager'
 import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
@@ -509,6 +510,19 @@ Keep it concise and actionable.`
 
   ipcMain.handle('tasks:delete', async (_, id: string) => {
     await repository.deleteTask(id)
+  })
+
+  // Work Mode
+  ipcMain.handle('workMode:getActiveTask', async () => {
+    return await activeTaskService.getActiveTask()
+  })
+
+  ipcMain.handle('workMode:setActiveTask', async (_, taskId: string) => {
+    await activeTaskService.setActiveTask(taskId)
+  })
+
+  ipcMain.handle('workMode:clearActiveTask', async () => {
+    await activeTaskService.clearActiveTask()
   })
 
   // Calendar

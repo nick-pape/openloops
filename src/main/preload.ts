@@ -64,6 +64,13 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('tasks:delete', id)
   },
 
+  // Work Mode
+  workMode: {
+    getActiveTask: () => ipcRenderer.invoke('workMode:getActiveTask'),
+    setActiveTask: (taskId: string) => ipcRenderer.invoke('workMode:setActiveTask', taskId),
+    clearActiveTask: () => ipcRenderer.invoke('workMode:clearActiveTask')
+  },
+
   // Calendar
   calendar: {
     importICS: () => ipcRenderer.invoke('calendar:importICS'),

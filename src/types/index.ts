@@ -149,6 +149,11 @@ declare global {
         update: (id: string, input: any) => Promise<Task>
         delete: (id: string) => Promise<void>
       }
+      workMode: {
+        getActiveTask: () => Promise<Task | null>
+        setActiveTask: (taskId: string) => Promise<void>
+        clearActiveTask: () => Promise<void>
+      }
       calendar: {
         importICS: () => Promise<string | null>
         parseICS: (icsContent: string) => Promise<any[]>
