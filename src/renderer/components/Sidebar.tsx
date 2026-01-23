@@ -75,7 +75,7 @@ export function Sidebar({
         </div>
 
         <div className="sidebar-section">
-          <h3>Tools</h3>
+          <h3>Tasks</h3>
           <div className="sidebar-items">
             <button
               className={`sidebar-item ${currentView.type === 'tasks' ? 'active' : ''}`}
@@ -83,6 +83,12 @@ export function Sidebar({
             >
               Tasks
             </button>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <h3>Tools</h3>
+          <div className="sidebar-items">
             <button
               className={`sidebar-item ${currentView.type === 'planner' ? 'active' : ''}`}
               onClick={onSelectPlanner}
