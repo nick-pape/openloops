@@ -7,7 +7,8 @@ export interface Project {
 
 export interface Capture {
   id: string
-  projectId: string
+  projectId?: string        // Optional - set if project-level capture
+  linkedTaskId?: string     // Optional - set if task-level capture
   type: 'text' | 'image' | 'audio'
   title: string
   bodyText?: string
@@ -15,6 +16,7 @@ export interface Capture {
   metadata?: string
   createdAt: Date
   isOpenLoop?: boolean
+  // CONSTRAINT: Exactly one of projectId or linkedTaskId must be set
 }
 
 export interface CaptureMetadata {

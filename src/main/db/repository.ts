@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte } from 'drizzle-orm'
+import { eq, and, or, desc, gte, lte, inArray, isNull } from 'drizzle-orm'
 import { getDatabase } from './database'
 import * as schema from './schema'
 import { v4 as uuidv4 } from 'uuid'
@@ -8,11 +8,14 @@ export interface CreateProjectInput {
 }
 
 export interface CreateCaptureInput {
-  projectId: string
+  projectId?: string        // Set if project-level capture
+  linkedTaskId?: string     // Set if task-level capture
   type: 'text' | 'image' | 'audio'
   title: string
   bodyText?: string
   filePath?: string
+  metadata?: string
+  // CONSTRAINT: Exactly one of projectId or linkedTaskId must be set
 }
 
 export interface CreateTaskInput {
@@ -31,6 +34,7 @@ export interface UpdateTaskInput {
   priority?: number
   estimateMinutes?: number
   dueDate?: Date
+  projectId?: string | null  // Allow reassigning task to different project or inbox
 }
 
 export class Repository {
@@ -80,13 +84,23 @@ export class Repository {
     const id = uuidv4()
     const flagId = uuidv4()
 
+    // Validate constraint: exactly one of projectId or linkedTaskId must be set
+    const hasProjectId = !!input.projectId
+    const hasLinkedTaskId = !!input.linkedTaskId
+
+    if (hasProjectId === hasLinkedTaskId) {
+      throw new Error('Capture must have exactly one of projectId or linkedTaskId')
+    }
+
     await db.insert(schema.captures).values({
       id,
       projectId: input.projectId,
+      linkedTaskId: input.linkedTaskId,
       type: input.type,
       title: input.title,
       bodyText: input.bodyText,
       filePath: input.filePath,
+      metadata: input.metadata,
       createdAt: new Date()
     })
 
@@ -114,13 +128,34 @@ export class Repository {
 
   async getCapturesWithFlags(projectId: string) {
     const db = getDatabase()
+
+    // Get all captures for this project, including:
+    // 1. Direct project captures (projectId = X)
+    // 2. Task-linked captures (linkedTaskId IN (tasks for project X))
+
+    // First, get task IDs for this project
+    const projectTasks = await db.select({ id: schema.tasks.id })
+      .from(schema.tasks)
+      .where(eq(schema.tasks.projectId, projectId))
+
+    const taskIds = projectTasks.map(t => t.id)
+
+    // Build where clause
+    const whereClause = taskIds.length > 0
+      ? or(
+          eq(schema.captures.projectId, projectId),
+          inArray(schema.captures.linkedTaskId, taskIds)
+        )
+      : eq(schema.captures.projectId, projectId)
+
+    // Get captures with flags
     const captures = await db.select({
       capture: schema.captures,
       flag: schema.captureFlags
     })
       .from(schema.captures)
       .leftJoin(schema.captureFlags, eq(schema.captures.id, schema.captureFlags.captureId))
-      .where(eq(schema.captures.projectId, projectId))
+      .where(whereClause)
       .orderBy(desc(schema.captures.createdAt))
 
     return captures.map(c => ({
@@ -158,6 +193,13 @@ export class Repository {
     await db.delete(schema.transcriptions).where(eq(schema.transcriptions.captureId, id))
     // Delete the capture
     await db.delete(schema.captures).where(eq(schema.captures.id, id))
+  }
+
+  async getCapturesByTask(taskId: string) {
+    const db = getDatabase()
+    return db.select().from(schema.captures)
+      .where(eq(schema.captures.linkedTaskId, taskId))
+      .orderBy(desc(schema.captures.createdAt))
   }
 
   // Transcriptions
@@ -235,6 +277,27 @@ export class Repository {
 
     return db.select().from(schema.tasks)
       .where(eq(schema.tasks.status, 'open'))
+      .orderBy(desc(schema.tasks.priority), schema.tasks.dueDate)
+  }
+
+  async getAllTasks(projectId?: string) {
+    const db = getDatabase()
+
+    if (projectId) {
+      return db.select().from(schema.tasks)
+        .where(eq(schema.tasks.projectId, projectId))
+        .orderBy(desc(schema.tasks.priority), schema.tasks.dueDate)
+    }
+
+    return db.select().from(schema.tasks)
+      .orderBy(desc(schema.tasks.priority), schema.tasks.dueDate)
+  }
+
+  async getInboxTasks() {
+    const db = getDatabase()
+    // Get tasks where projectId is NULL (inbox/ad-hoc tasks)
+    return db.select().from(schema.tasks)
+      .where(isNull(schema.tasks.projectId))
       .orderBy(desc(schema.tasks.priority), schema.tasks.dueDate)
   }
 

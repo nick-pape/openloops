@@ -40,12 +40,18 @@ function runMigrations() {
 
     CREATE TABLE IF NOT EXISTS captures (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      linked_task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
       type TEXT NOT NULL CHECK(type IN ('text', 'image', 'audio')),
       title TEXT NOT NULL,
       body_text TEXT,
       file_path TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+      metadata TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      CHECK (
+        (project_id IS NOT NULL AND linked_task_id IS NULL) OR
+        (project_id IS NULL AND linked_task_id IS NOT NULL)
+      )
     );
 
     CREATE TABLE IF NOT EXISTS capture_flags (
@@ -136,6 +142,7 @@ function runMigrations() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_captures_project ON captures(project_id);
+    CREATE INDEX IF NOT EXISTS idx_captures_task ON captures(linked_task_id);
     CREATE INDEX IF NOT EXISTS idx_captures_created ON captures(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
