@@ -153,6 +153,9 @@ declare global {
         getActiveTask: () => Promise<Task | null>
         setActiveTask: (taskId: string) => Promise<void>
         clearActiveTask: () => Promise<void>
+        openWindow: () => Promise<void>
+        closeWindow: () => Promise<void>
+        toggleWindow: () => Promise<void>
       }
       calendar: {
         importICS: () => Promise<string | null>

@@ -5,6 +5,7 @@ import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
 import { JobsView } from './views/JobsView'
 import { TasksView } from './views/TasksView'
+import { WorkModeView } from './views/WorkModeView'
 import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
 import './App.css'
@@ -21,8 +22,13 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentView, setCurrentView] = useState<View>({ type: 'welcome' })
 
+  // Check if this is the Work Mode window
+  const isWorkModeWindow = window.location.hash === '#/work-mode'
+
   useEffect(() => {
-    loadProjects()
+    if (!isWorkModeWindow) {
+      loadProjects()
+    }
   }, [])
 
   const loadProjects = async () => {
@@ -42,6 +48,11 @@ function App() {
     if (currentView.type === 'project' && currentView.projectId === id) {
       setCurrentView({ type: 'welcome' })
     }
+  }
+
+  // Render Work Mode window separately (no sidebar, different layout)
+  if (isWorkModeWindow) {
+    return <WorkModeView />
   }
 
   return (

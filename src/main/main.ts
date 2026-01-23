@@ -4,6 +4,7 @@ import fs from 'fs'
 import { initDatabase, closeDatabase } from './db/database'
 import { repository } from './db/repository'
 import { activeTaskService } from './work-mode/active-task-service'
+import { workModeWindow } from './windows/work-mode-window'
 import { jobManager } from './workers/job-manager'
 import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
@@ -146,6 +147,18 @@ app.whenReady().then(async () => {
     console.error('[Global Hotkey] Failed to register Ctrl+Shift+S')
   } else {
     console.log('[Global Hotkey] Registered Ctrl+Shift+S for screenshot')
+  }
+
+  // Register global hotkey for Work Mode (Ctrl+Shift+W)
+  const workModeSuccess = globalShortcut.register('CommandOrControl+Shift+W', () => {
+    console.log('[Global Hotkey] Work Mode toggle triggered (Ctrl+Shift+W)')
+    workModeWindow.toggle()
+  })
+
+  if (!workModeSuccess) {
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+W')
+  } else {
+    console.log('[Global Hotkey] Registered Ctrl+Shift+W for Work Mode')
   }
 
   app.on('activate', () => {
@@ -523,6 +536,18 @@ Keep it concise and actionable.`
 
   ipcMain.handle('workMode:clearActiveTask', async () => {
     await activeTaskService.clearActiveTask()
+  })
+
+  ipcMain.handle('workMode:openWindow', async () => {
+    await workModeWindow.create()
+  })
+
+  ipcMain.handle('workMode:closeWindow', async () => {
+    workModeWindow.close()
+  })
+
+  ipcMain.handle('workMode:toggleWindow', async () => {
+    workModeWindow.toggle()
   })
 
   // Calendar

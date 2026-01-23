@@ -68,7 +68,10 @@ const api = {
   workMode: {
     getActiveTask: () => ipcRenderer.invoke('workMode:getActiveTask'),
     setActiveTask: (taskId: string) => ipcRenderer.invoke('workMode:setActiveTask', taskId),
-    clearActiveTask: () => ipcRenderer.invoke('workMode:clearActiveTask')
+    clearActiveTask: () => ipcRenderer.invoke('workMode:clearActiveTask'),
+    openWindow: () => ipcRenderer.invoke('workMode:openWindow'),
+    closeWindow: () => ipcRenderer.invoke('workMode:closeWindow'),
+    toggleWindow: () => ipcRenderer.invoke('workMode:toggleWindow')
   },
 
   // Calendar
