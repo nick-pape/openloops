@@ -13,7 +13,10 @@ export class JobManager {
     this.mainWindow = window
   }
 
-  start() {
+  async start() {
+    // Clean up any stuck "processing" jobs from previous crashes
+    await this.markProcessingJobsAsFailed('Application restarted while job was processing')
+
     // Check for pending jobs every 5 seconds
     this.checkInterval = setInterval(() => {
       this.processPendingJobs()
@@ -136,16 +139,31 @@ export class JobManager {
         setTimeout(() => this.processPendingJobs(), 100)
       })
 
-      this.worker.on('error', (error) => {
+      this.worker.on('error', async (error) => {
         console.error('[JobManager] Worker error:', error)
+
+        // Mark any processing jobs as failed
+        await this.markProcessingJobsAsFailed(error.message)
+
         this.worker = null
+
+        // Try to process next job after a delay
+        setTimeout(() => this.processPendingJobs(), 1000)
       })
 
-      this.worker.on('exit', (code) => {
+      this.worker.on('exit', async (code) => {
         if (code !== 0) {
           console.error(`[JobManager] Worker stopped with exit code ${code}`)
+
+          // Mark any processing jobs as failed
+          await this.markProcessingJobsAsFailed(`Worker crashed with exit code ${code}`)
         }
         this.worker = null
+
+        // Try to process next job after a delay
+        if (code !== 0) {
+          setTimeout(() => this.processPendingJobs(), 1000)
+        }
       })
     }
 
@@ -160,6 +178,26 @@ export class JobManager {
       dbPath,
       config
     })
+  }
+
+  private async markProcessingJobsAsFailed(errorMessage: string) {
+    try {
+      const processingJobs = await repository.getProcessingJobs()
+      for (const job of processingJobs) {
+        console.log(`[JobManager] Marking processing job ${job.id} as failed due to worker crash`)
+        await repository.updateJobStatus(job.id, 'error', undefined, errorMessage)
+
+        // Emit event to renderer
+        if (this.mainWindow) {
+          const updatedJob = await repository.getJob(job.id)
+          if (updatedJob) {
+            this.mainWindow.webContents.send('job:updated', updatedJob)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[JobManager] Failed to mark processing jobs as failed:', error)
+    }
   }
 
   private async getConfig() {

@@ -440,6 +440,12 @@ export class Repository {
     return result[0]
   }
 
+  async getProcessingJobs() {
+    const db = getDatabase()
+    return db.select().from(schema.jobQueue)
+      .where(eq(schema.jobQueue.status, 'processing'))
+  }
+
   async updateJobStatus(id: string, status: 'processing' | 'done' | 'error', result?: string, errorMessage?: string) {
     const db = getDatabase()
     await db.update(schema.jobQueue)

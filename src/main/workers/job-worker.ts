@@ -9,7 +9,6 @@ import {
   LLMProvider
 } from '../ai/providers'
 import fs from 'fs'
-import sharp from 'sharp'
 
 console.log('[Job Worker] Worker thread started')
 
@@ -188,26 +187,17 @@ async function handleImageDescription(
     return '' // Return empty string, will keep filename
   }
 
-  // Read and downscale image for vision API
+  // Read already-resized image (resizing done in main process)
   if (!fs.existsSync(payload.imagePath)) {
     throw new Error(`Image file not found: ${payload.imagePath}`)
   }
 
-  console.log('[Job Worker] Reading and downscaling image...')
-  // Downscale to max 768px width/height, maintaining aspect ratio
-  const downscaledBuffer = await sharp(payload.imagePath)
-    .resize(768, 768, {
-      fit: 'inside',
-      withoutEnlargement: true
-    })
-    .toFormat('jpeg', { quality: 85 })
-    .toBuffer()
+  console.log('[Job Worker] Reading resized image...')
+  const imageBuffer = fs.readFileSync(payload.imagePath)
+  console.log('[Job Worker] Image size:', imageBuffer.length, 'bytes')
 
-  console.log('[Job Worker] Original size:', fs.statSync(payload.imagePath).size, 'bytes')
-  console.log('[Job Worker] Downscaled size:', downscaledBuffer.length, 'bytes')
-
-  const base64 = downscaledBuffer.toString('base64')
-  const mimeType = 'image/jpeg' // Always JPEG after downscaling
+  const base64 = imageBuffer.toString('base64')
+  const mimeType = 'image/jpeg' // Resized images are always JPEG
 
   console.log('[Job Worker] Generating image title...')
   const result = await llmProvider.generateImageTitle(base64, mimeType)

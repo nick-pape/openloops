@@ -94,9 +94,9 @@ function createMenu() {
   Menu.setApplicationMenu(menu)
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   initDatabase()
-  jobManager.start()
+  await jobManager.start()
   setupIPC()
   createMenu()
   createWindow()
@@ -270,8 +270,37 @@ function setupIPC() {
   // Image description
   ipcMain.handle('images:requestDescription', async (_, captureId: string, imagePath: string) => {
     console.log('[Images] Requesting description for capture:', captureId)
-    await jobManager.enqueueImageDescription(captureId, imagePath)
-    console.log('[Images] Image description job enqueued')
+
+    try {
+      // Import sharp dynamically (only in main process, not worker)
+      const sharp = require('sharp')
+
+      // Resize image BEFORE enqueueing job
+      console.log('[Images] Resizing image...')
+      const originalSize = fs.statSync(imagePath).size
+
+      const resizedBuffer = await sharp(imagePath)
+        .resize(768, 768, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .toFormat('jpeg', { quality: 85 })
+        .toBuffer()
+
+      console.log('[Images] Original size:', originalSize, 'bytes')
+      console.log('[Images] Resized size:', resizedBuffer.length, 'bytes')
+
+      // Save resized image to temp location
+      const resizedPath = imagePath.replace(/\.[^.]+$/, '_resized.jpg')
+      fs.writeFileSync(resizedPath, resizedBuffer)
+
+      // Enqueue job with resized image path
+      await jobManager.enqueueImageDescription(captureId, resizedPath)
+      console.log('[Images] Image description job enqueued')
+    } catch (error) {
+      console.error('[Images] Failed to resize image:', error)
+      throw new Error(`Failed to prepare image for description: ${error.message}`)
+    }
   })
 
   // Project summaries
