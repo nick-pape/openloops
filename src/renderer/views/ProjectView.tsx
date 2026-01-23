@@ -293,44 +293,49 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   const handleUploadImage = async () => {
     try {
-      // Open file picker
-      const filePath = await window.electron.files.selectImage()
+      console.log('[handleUploadImage] Starting image upload...')
 
-      if (!filePath) {
+      // Open file picker and read file
+      const result = await window.electron.files.selectImage()
+      console.log('[handleUploadImage] File selected:', result?.filename)
+
+      if (!result) {
         // User cancelled
+        console.log('[handleUploadImage] User cancelled file selection')
         return
       }
 
-      // Read the file
-      const fileBuffer = await window.electron.files.readImage(filePath)
-
-      // Get filename for initial title
-      const filename = filePath.split(/[\\/]/).pop() || 'Image'
-
       // Determine extension
-      const extension = filename.split('.').pop() || 'png'
+      const extension = result.filename.split('.').pop() || 'png'
+      console.log('[handleUploadImage] Extension:', extension)
 
       // Save image to project
-      const savedPath = await window.electron.files.saveImage(projectId, fileBuffer, extension)
+      console.log('[handleUploadImage] Saving image to project...')
+      const savedPath = await window.electron.files.saveImage(projectId, result.buffer, extension)
+      console.log('[handleUploadImage] Image saved to:', savedPath)
 
       // Create image capture with filename as title
+      console.log('[handleUploadImage] Creating capture...')
       const capture = await window.electron.captures.create({
         projectId,
         type: 'image',
-        title: filename,
+        title: result.filename,
         filePath: savedPath
       })
+      console.log('[handleUploadImage] Capture created:', capture.id)
 
       // Enqueue image description job (will update title if LLM is configured)
-      // This is fire-and-forget, the title will update in the background
+      console.log('[handleUploadImage] Enqueueing image description job...')
       await window.electron.images.requestDescription(capture.id, savedPath)
-      console.log('Image description job enqueued for capture:', capture.id)
+      console.log('[handleUploadImage] Image description job enqueued')
 
       // Reload project to show new capture
+      console.log('[handleUploadImage] Reloading project...')
       await loadProject()
+      console.log('[handleUploadImage] Project reloaded successfully')
     } catch (error) {
-      console.error('Failed to upload image:', error)
-      alert('Failed to upload image')
+      console.error('[handleUploadImage] ERROR:', error)
+      alert(`Failed to upload image: ${error}`)
     }
   }
 

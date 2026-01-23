@@ -27,7 +27,7 @@ Add ergonomic image upload via file picker with AI-generated titles, plus a glob
 7. User can click ✏️ to edit title anytime
 
 ### Global Hotkey Flow
-1. User presses `Ctrl+Shift+I` (or `Cmd+Shift+I` on Mac) anywhere in OS
+1. User presses `Ctrl+Shift+U` (or `Cmd+Shift+U` on Mac) anywhere in OS
 2. App window comes to foreground (if minimized/background)
 3. File picker opens immediately
 4. Rest of flow same as above

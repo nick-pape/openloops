@@ -97,9 +97,10 @@ app.whenReady().then(() => {
   createMenu()
   createWindow()
 
-  // Register global hotkey for image upload
-  const success = globalShortcut.register('CommandOrControl+Shift+I', () => {
-    console.log('[Global Hotkey] Image upload triggered (Ctrl+Shift+I)')
+  // Register global hotkey for image upload (Ctrl+Shift+U)
+  // Note: Ctrl+Shift+I is reserved for DevTools
+  const success = globalShortcut.register('CommandOrControl+Shift+U', () => {
+    console.log('[Global Hotkey] Image upload triggered (Ctrl+Shift+U)')
 
     if (mainWindow) {
       // Bring app to foreground
@@ -114,9 +115,9 @@ app.whenReady().then(() => {
   })
 
   if (!success) {
-    console.error('[Global Hotkey] Failed to register Ctrl+Shift+I')
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+U')
   } else {
-    console.log('[Global Hotkey] Registered Ctrl+Shift+I for image upload')
+    console.log('[Global Hotkey] Registered Ctrl+Shift+U for image upload')
   }
 
   app.on('activate', () => {
@@ -242,7 +243,17 @@ function setupIPC() {
       return null
     }
 
-    return result.filePaths[0]
+    const filePath = result.filePaths[0]
+
+    // Read the file and return both path and buffer
+    const buffer = fs.readFileSync(filePath)
+    const filename = path.basename(filePath)
+
+    return {
+      filePath,
+      filename,
+      buffer: buffer.buffer // Return ArrayBuffer
+    }
   })
 
   // Audio transcription
