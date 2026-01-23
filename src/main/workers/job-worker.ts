@@ -43,9 +43,9 @@ parentPort?.on('message', async (message: JobMessage) => {
     if (type === 'transcription') {
       result = await handleTranscription(payload, config, db)
     } else if (type === 'summary') {
-      result = await handleSummary(payload, config, db)
+      result = await handleSummary(payload, config, db, jobId)
     } else if (type === 'image-description') {
-      result = await handleImageDescription(payload, config, db)
+      result = await handleImageDescription(payload, config, db, jobId)
     } else {
       throw new Error(`Unknown job type: ${type}`)
     }
@@ -111,7 +111,8 @@ async function handleTranscription(
 async function handleSummary(
   payload: { projectId: string; context: string; prompt: string },
   config: any,
-  db: any
+  db: any,
+  jobId: string
 ): Promise<string> {
   console.log('[Job Worker] Handling summary job')
   console.log('[Job Worker] LLM config:', config.llm)
@@ -125,8 +126,17 @@ async function handleSummary(
   }
 
   console.log('[Job Worker] Generating summary...')
-  const summary = await llmProvider.generateSummary(payload.prompt, payload.context)
-  console.log('[Job Worker] Summary generated, length:', summary.length)
+  const result = await llmProvider.generateSummary(payload.prompt, payload.context)
+  console.log('[Job Worker] Summary generated, length:', result.text.length)
+
+  // Update job with provider metadata
+  await db.update(schema.jobQueue)
+    .set({
+      provider: llmProvider.name,
+      model: llmProvider.model,
+      metadata: JSON.stringify(result.metadata)
+    })
+    .where(eq(schema.jobQueue.id, jobId))
 
   // Store summary in project_summaries
   const windowEnd = new Date()
@@ -136,20 +146,21 @@ async function handleSummary(
   await db.insert(schema.projectSummaries).values({
     id: summaryId,
     projectId: payload.projectId,
-    summaryMd: summary,
+    summaryMd: result.text,
     provider: llmProvider.name,
     sourceWindowStart: windowStart,
     sourceWindowEnd: windowEnd,
     createdAt: new Date()
   })
 
-  return summary
+  return result.text
 }
 
 async function handleImageDescription(
   payload: { captureId: string; imagePath: string },
   config: any,
-  db: any
+  db: any,
+  jobId: string
 ): Promise<string> {
   console.log('[Job Worker] Handling image-description job')
   console.log('[Job Worker] Image path:', payload.imagePath)
@@ -165,6 +176,15 @@ async function handleImageDescription(
   // Check if LLM provider is disabled
   if (llmProvider.name === 'disabled') {
     console.log('[Job Worker] LLM provider is disabled, skipping image description')
+
+    // Update job with provider info
+    await db.update(schema.jobQueue)
+      .set({
+        provider: 'disabled',
+        model: 'none'
+      })
+      .where(eq(schema.jobQueue.id, jobId))
+
     return '' // Return empty string, will keep filename
   }
 
@@ -190,11 +210,20 @@ async function handleImageDescription(
   const mimeType = 'image/jpeg' // Always JPEG after downscaling
 
   console.log('[Job Worker] Generating image title...')
-  const title = await llmProvider.generateImageTitle(base64, mimeType)
-  console.log('[Job Worker] Image title generated:', title)
+  const result = await llmProvider.generateImageTitle(base64, mimeType)
+  console.log('[Job Worker] Image title generated:', result.text)
+
+  // Update job with provider metadata
+  await db.update(schema.jobQueue)
+    .set({
+      provider: llmProvider.name,
+      model: llmProvider.model,
+      metadata: JSON.stringify(result.metadata)
+    })
+    .where(eq(schema.jobQueue.id, jobId))
 
   // Update capture title if we got a result
-  if (title && title.trim()) {
+  if (result.text && result.text.trim()) {
     const capture = await db.select()
       .from(schema.captures)
       .where(eq(schema.captures.id, payload.captureId))
@@ -202,12 +231,12 @@ async function handleImageDescription(
 
     if (capture[0]) {
       await db.update(schema.captures)
-        .set({ title: title.trim() })
+        .set({ title: result.text.trim() })
         .where(eq(schema.captures.id, payload.captureId))
     }
   }
 
-  return title
+  return result.text
 }
 
 function getMimeType(ext: string): string {

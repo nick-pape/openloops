@@ -1,12 +1,17 @@
 import { Worker } from 'worker_threads'
 import path from 'path'
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { repository } from '../db/repository'
 
 export class JobManager {
   private worker: Worker | null = null
   private isProcessing = false
   private checkInterval: NodeJS.Timeout | null = null
+  private mainWindow: BrowserWindow | null = null
+
+  setMainWindow(window: BrowserWindow | null) {
+    this.mainWindow = window
+  }
 
   start() {
     // Check for pending jobs every 5 seconds
@@ -108,13 +113,25 @@ export class JobManager {
         : path.join(__dirname, 'job-worker.js')
       this.worker = new Worker(workerPath)
 
-      this.worker.on('message', (message) => {
+      this.worker.on('message', async (message) => {
         console.log('[JobManager] Job completed:', message.jobId, 'success:', message.success)
         if (message.success) {
           console.log('[JobManager] Result:', message.result?.substring(0, 100))
         } else {
           console.error('[JobManager] Job failed:', message.error)
         }
+
+        // Fetch the updated job from database and emit event to renderer
+        try {
+          const updatedJob = await repository.getJob(message.jobId)
+          if (updatedJob && this.mainWindow) {
+            this.mainWindow.webContents.send('job:updated', updatedJob)
+            console.log('[JobManager] Emitted job:updated event for job:', message.jobId)
+          }
+        } catch (error) {
+          console.error('[JobManager] Failed to fetch and emit job update:', error)
+        }
+
         // Process next job
         setTimeout(() => this.processPendingJobs(), 100)
       })

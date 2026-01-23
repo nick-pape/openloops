@@ -94,12 +94,25 @@ const api = {
     testConnection: (baseUrl: string, apiKey: string) => ipcRenderer.invoke('transcription:testConnection', baseUrl, apiKey)
   },
 
+  // Jobs
+  jobs: {
+    getAll: () => ipcRenderer.invoke('jobs:getAll'),
+    getByProject: (projectId: string) => ipcRenderer.invoke('jobs:getByProject', projectId),
+    clear: () => ipcRenderer.invoke('jobs:clear')
+  },
+
   // Event listeners for main → renderer communication
   onTriggerImageUpload: (callback: () => void) => {
     ipcRenderer.on('trigger-image-upload', callback)
   },
   offTriggerImageUpload: (callback: () => void) => {
     ipcRenderer.removeListener('trigger-image-upload', callback)
+  },
+  onJobUpdated: (callback: (job: any) => void) => {
+    ipcRenderer.on('job:updated', (_event, job) => callback(job))
+  },
+  offJobUpdated: (callback: (job: any) => void) => {
+    ipcRenderer.removeListener('job:updated', callback)
   }
 }
 

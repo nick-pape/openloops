@@ -122,6 +122,9 @@ function runMigrations() {
       payload TEXT NOT NULL,
       result TEXT,
       error_message TEXT,
+      provider TEXT,
+      model TEXT,
+      metadata TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );

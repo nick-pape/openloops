@@ -3,6 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { ProjectView } from './views/ProjectView'
 import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
+import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
 import './App.css'
 
@@ -40,32 +41,34 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Sidebar
-        projects={projects}
-        currentView={currentView}
-        onSelectProject={(id) => setCurrentView({ type: 'project', projectId: id })}
-        onSelectPlanner={() => setCurrentView({ type: 'planner' })}
-        onSelectSettings={() => setCurrentView({ type: 'settings' })}
-        onCreateProject={handleCreateProject}
-      />
-      <main className="main-content">
-        {currentView.type === 'welcome' && (
-          <div className="welcome">
-            <h1>🤹‍♂️ Welcome to Open Loops</h1>
-            <p>Create a project or open the planner to get started.</p>
-          </div>
-        )}
-        {currentView.type === 'project' && (
-          <ProjectView
-            projectId={currentView.projectId}
-            onDeleteProject={handleDeleteProject}
-          />
-        )}
-        {currentView.type === 'planner' && <PlannerView />}
-        {currentView.type === 'settings' && <SettingsView />}
-      </main>
-    </div>
+    <JobsProvider>
+      <div className="app">
+        <Sidebar
+          projects={projects}
+          currentView={currentView}
+          onSelectProject={(id) => setCurrentView({ type: 'project', projectId: id })}
+          onSelectPlanner={() => setCurrentView({ type: 'planner' })}
+          onSelectSettings={() => setCurrentView({ type: 'settings' })}
+          onCreateProject={handleCreateProject}
+        />
+        <main className="main-content">
+          {currentView.type === 'welcome' && (
+            <div className="welcome">
+              <h1>🤹‍♂️ Welcome to Open Loops</h1>
+              <p>Create a project or open the planner to get started.</p>
+            </div>
+          )}
+          {currentView.type === 'project' && (
+            <ProjectView
+              projectId={currentView.projectId}
+              onDeleteProject={handleDeleteProject}
+            />
+          )}
+          {currentView.type === 'planner' && <PlannerView />}
+          {currentView.type === 'settings' && <SettingsView />}
+        </main>
+      </div>
+    </JobsProvider>
   )
 }
 

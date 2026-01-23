@@ -2,6 +2,19 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
+export interface JobMetadata {
+  baseUrl?: string
+  model?: string
+  requestParams?: Record<string, any>
+  tokensUsed?: number
+  durationMs?: number
+}
+
+export interface LLMResult {
+  text: string
+  metadata: JobMetadata
+}
+
 export interface TranscriptionProvider {
   name: string
   transcribe(audioFilePath: string): Promise<string>
@@ -9,8 +22,10 @@ export interface TranscriptionProvider {
 
 export interface LLMProvider {
   name: string
-  generateSummary(prompt: string, context: string): Promise<string>
-  generateImageTitle(imageBase64: string, mimeType: string): Promise<string>
+  model: string
+  baseUrl?: string
+  generateSummary(prompt: string, context: string): Promise<LLMResult>
+  generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult>
 }
 
 // Remote Transcription Provider (OpenAI Whisper API)
@@ -100,29 +115,37 @@ export class LocalTranscriptionProvider implements TranscriptionProvider {
 // Remote LLM Provider (OpenAI-compatible)
 export class RemoteLLMProvider implements LLMProvider {
   name = 'remote-llm'
+  model: string
+  baseUrl: string
 
   constructor(
     private apiKey: string,
-    private baseUrl: string = 'https://api.openai.com/v1',
-    private model: string = 'gpt-4o-mini'
-  ) {}
+    baseUrl: string = 'https://api.openai.com/v1',
+    model: string = 'gpt-4o-mini'
+  ) {
+    this.baseUrl = baseUrl
+    this.model = model
+  }
 
-  async generateSummary(prompt: string, context: string): Promise<string> {
+  async generateSummary(prompt: string, context: string): Promise<LLMResult> {
+    const startTime = Date.now()
+    const requestParams = {
+      model: this.model,
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: context }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
+    }
+
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: prompt },
-          { role: 'user', content: context }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      })
+      body: JSON.stringify(requestParams)
     })
 
     if (!response.ok) {
@@ -130,37 +153,54 @@ export class RemoteLLMProvider implements LLMProvider {
     }
 
     const data = await response.json()
-    return data.choices[0].message.content
+    const durationMs = Date.now() - startTime
+
+    return {
+      text: data.choices[0].message.content,
+      metadata: {
+        baseUrl: this.baseUrl,
+        model: this.model,
+        requestParams: {
+          temperature: 0.7,
+          max_tokens: 1000
+        },
+        tokensUsed: data.usage?.total_tokens,
+        durationMs
+      }
+    }
   }
 
-  async generateImageTitle(imageBase64: string, mimeType: string): Promise<string> {
+  async generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult> {
+    const startTime = Date.now()
+    const requestParams = {
+      model: this.model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Describe this image in 5-10 words as a title. Be concise and specific about what you see.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 50
+    }
+
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Describe this image in 5-10 words as a title. Be concise and specific about what you see.'
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${imageBase64}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 50
-      })
+      body: JSON.stringify(requestParams)
     })
 
     if (!response.ok) {
@@ -168,21 +208,37 @@ export class RemoteLLMProvider implements LLMProvider {
     }
 
     const data = await response.json()
-    return data.choices[0].message.content.trim()
+    const durationMs = Date.now() - startTime
+
+    return {
+      text: data.choices[0].message.content.trim(),
+      metadata: {
+        baseUrl: this.baseUrl,
+        model: this.model,
+        requestParams: {
+          max_tokens: 50,
+          imageSize: Math.round(imageBase64.length * 0.75) // Approximate bytes
+        },
+        tokensUsed: data.usage?.total_tokens,
+        durationMs
+      }
+    }
   }
 }
 
 // Disabled LLM Provider (local fallback)
 export class DisabledLLMProvider implements LLMProvider {
   name = 'disabled'
+  model = 'none'
+  baseUrl = undefined
 
-  async generateSummary(_prompt: string, context: string): Promise<string> {
+  async generateSummary(_prompt: string, context: string): Promise<LLMResult> {
     // Parse context to extract basic info
     const lines = context.split('\n')
     const captureCount = lines.filter(l => l.includes('Capture:')).length
     const taskCount = lines.filter(l => l.includes('Task:')).length
 
-    return `## Project Status (Local Summary)
+    const text = `## Project Status (Local Summary)
 
 **Recent Activity:**
 - ${captureCount} captures
@@ -193,11 +249,25 @@ export class DisabledLLMProvider implements LLMProvider {
 **Recent Items:**
 ${lines.slice(0, 10).join('\n')}
 `
+
+    return {
+      text,
+      metadata: {
+        model: 'none',
+        durationMs: 0
+      }
+    }
   }
 
-  async generateImageTitle(_imageBase64: string, _mimeType: string): Promise<string> {
+  async generateImageTitle(_imageBase64: string, _mimeType: string): Promise<LLMResult> {
     // No-op: return empty string, caller will keep the filename
-    return ''
+    return {
+      text: '',
+      metadata: {
+        model: 'none',
+        durationMs: 0
+      }
+    }
   }
 }
 

@@ -383,7 +383,7 @@ export class Repository {
   }
 
   // Job Queue
-  async enqueueJob(type: 'transcription' | 'summary', payload: any) {
+  async enqueueJob(type: 'transcription' | 'summary' | 'image-description', payload: any) {
     const db = getDatabase()
     const id = uuidv4()
     const now = new Date()
@@ -400,7 +400,35 @@ export class Repository {
     return id
   }
 
-  async getNextPendingJob(type: 'transcription' | 'summary') {
+  async getJob(id: string) {
+    const db = getDatabase()
+    const result = await db.select().from(schema.jobQueue)
+      .where(eq(schema.jobQueue.id, id))
+      .limit(1)
+    return result[0]
+  }
+
+  async getAllJobs() {
+    const db = getDatabase()
+    return db.select().from(schema.jobQueue)
+      .orderBy(schema.jobQueue.createdAt)
+  }
+
+  async getJobsByProject(projectId: string) {
+    const db = getDatabase()
+    // Parse payload to filter by projectId or captureId
+    const allJobs = await this.getAllJobs()
+    return allJobs.filter(job => {
+      try {
+        const payload = JSON.parse(job.payload)
+        return payload.projectId === projectId || payload.captureId
+      } catch {
+        return false
+      }
+    })
+  }
+
+  async getNextPendingJob(type: 'transcription' | 'summary' | 'image-description') {
     const db = getDatabase()
     const result = await db.select().from(schema.jobQueue)
       .where(and(
@@ -417,6 +445,12 @@ export class Repository {
     await db.update(schema.jobQueue)
       .set({ status, result, errorMessage, updatedAt: new Date() })
       .where(eq(schema.jobQueue.id, id))
+  }
+
+  async clearCompletedJobs() {
+    const db = getDatabase()
+    await db.delete(schema.jobQueue)
+      .where(eq(schema.jobQueue.status, 'done'))
   }
 
   // Settings

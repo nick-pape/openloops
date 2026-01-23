@@ -92,6 +92,9 @@ export const jobQueue = sqliteTable('job_queue', {
   payload: text('payload').notNull(),
   result: text('result'),
   errorMessage: text('error_message'),
+  provider: text('provider'),
+  model: text('model'),
+  metadata: text('metadata'), // JSON: { baseUrl, requestParams, tokensUsed, durationMs }
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`)
 })

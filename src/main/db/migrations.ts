@@ -44,6 +44,27 @@ export const migrations: Migration[] = [
 
       console.log('[Migration] Completed: add-image-description-job-type')
     }
+  },
+  {
+    version: 2,
+    name: 'add-job-queue-metadata-columns',
+    up: (db) => {
+      console.log('[Migration] Running: add-job-queue-metadata-columns')
+
+      // Add provider, model, and metadata columns to job_queue
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        -- Add new columns
+        ALTER TABLE job_queue ADD COLUMN provider TEXT;
+        ALTER TABLE job_queue ADD COLUMN model TEXT;
+        ALTER TABLE job_queue ADD COLUMN metadata TEXT;
+
+        COMMIT;
+      `)
+
+      console.log('[Migration] Completed: add-job-queue-metadata-columns')
+    }
   }
 ]
 

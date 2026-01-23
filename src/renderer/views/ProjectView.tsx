@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Project, Capture, ProjectSummary, Transcription } from '../../types'
+import { useJobs } from '../contexts/JobsContext'
 import './ProjectView.css'
 
 interface ProjectViewProps {
@@ -28,9 +29,52 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
+  // Subscribe to jobs context for this project
+  const { jobs } = useJobs({ projectId })
+
   useEffect(() => {
     loadProject()
   }, [projectId])
+
+  // Listen for job completions and auto-reload relevant data
+  useEffect(() => {
+    const completedJobs = jobs.filter(j => j.status === 'done')
+
+    if (completedJobs.length === 0) return
+
+    // Check most recent completed job
+    const latestCompleted = completedJobs[completedJobs.length - 1]
+
+    if (latestCompleted.type === 'image-description') {
+      console.log('[ProjectView] Image description completed, reloading captures')
+      loadCaptures()
+    } else if (latestCompleted.type === 'summary') {
+      console.log('[ProjectView] Summary completed, reloading summary')
+      loadSummary()
+      setGeneratingSummary(false)
+    } else if (latestCompleted.type === 'transcription') {
+      console.log('[ProjectView] Transcription completed, reloading captures')
+      loadCaptures()
+    }
+  }, [jobs])
+
+  const loadCaptures = async () => {
+    try {
+      const caps = await window.electron.captures.getByProject(projectId)
+      setCaptures(caps)
+    } catch (error) {
+      console.error('Failed to reload captures:', error)
+    }
+  }
+
+  const loadSummary = async () => {
+    try {
+      const summ = await window.electron.summaries.getLatest(projectId)
+      setSummary(summ || null)
+    } catch (error) {
+      console.error('Failed to reload summary:', error)
+    }
+  }
 
   // Listen for global hotkey trigger
   useEffect(() => {
@@ -71,37 +115,10 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     try {
       console.log('Requesting summary generation for project:', projectId)
       await window.electron.summaries.generate(projectId)
-      console.log('Summary generation enqueued, polling for result...')
-
-      // Poll for the summary to be ready (check every 2 seconds for up to 30 seconds)
-      let attempts = 0
-      const maxAttempts = 15
-
-      const pollInterval = setInterval(async () => {
-        attempts++
-        console.log(`Polling attempt ${attempts}/${maxAttempts}`)
-
-        try {
-          const summ = await window.electron.summaries.getLatest(projectId)
-          if (summ) {
-            console.log('Summary received:', summ)
-            setSummary(summ)
-            setGeneratingSummary(false)
-            clearInterval(pollInterval)
-          } else if (attempts >= maxAttempts) {
-            console.error('Summary generation timed out after 30 seconds')
-            alert('Summary generation is taking longer than expected. Check the console for errors or try again.')
-            setGeneratingSummary(false)
-            clearInterval(pollInterval)
-          }
-        } catch (error) {
-          console.error('Error polling for summary:', error)
-          setGeneratingSummary(false)
-          clearInterval(pollInterval)
-        }
-      }, 2000)
+      console.log('Summary generation enqueued - will update automatically when complete')
+      // Job events will handle reloading the summary when complete
     } catch (error) {
-      console.error('Failed to generate summary:', error)
+      console.error('Failed to enqueue summary generation:', error)
       alert(`Failed to generate summary: ${error}`)
       setGeneratingSummary(false)
     }

@@ -24,6 +24,9 @@ function createWindow() {
     }
   })
 
+  // Set main window reference for job manager to emit events
+  jobManager.setMainWindow(mainWindow)
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
@@ -32,6 +35,7 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => {
+    jobManager.setMainWindow(null)
     mainWindow = null
   })
 }
@@ -320,6 +324,19 @@ Keep it concise and actionable.`
       console.error('Error in summaries:generate handler:', error)
       throw error
     }
+  })
+
+  // Jobs
+  ipcMain.handle('jobs:getAll', async () => {
+    return repository.getAllJobs()
+  })
+
+  ipcMain.handle('jobs:getByProject', async (_, projectId: string) => {
+    return repository.getJobsByProject(projectId)
+  })
+
+  ipcMain.handle('jobs:clear', async () => {
+    await repository.clearCompletedJobs()
   })
 
   // Tasks
