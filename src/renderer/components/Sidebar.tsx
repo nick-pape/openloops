@@ -75,7 +75,16 @@ export function Sidebar({
         </div>
 
         <div className="sidebar-section">
-          <h3>Tasks</h3>
+          <div className="sidebar-section-header">
+            <h3>Tasks</h3>
+            <button
+              className="icon-button"
+              onClick={onSelectTasks}
+              title="New Task"
+            >
+              +
+            </button>
+          </div>
           <div className="sidebar-items">
             <button
               className={`sidebar-item ${currentView.type === 'tasks' ? 'active' : ''}`}
