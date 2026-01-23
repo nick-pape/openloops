@@ -7,6 +7,7 @@ interface SidebarProps {
   projects: Project[]
   currentView: { type: string; projectId?: string }
   onSelectProject: (id: string) => void
+  onSelectTasks: () => void
   onSelectPlanner: () => void
   onSelectJobs: () => void
   onSelectSettings: () => void
@@ -17,6 +18,7 @@ export function Sidebar({
   projects,
   currentView,
   onSelectProject,
+  onSelectTasks,
   onSelectPlanner,
   onSelectJobs,
   onSelectSettings,
@@ -75,6 +77,12 @@ export function Sidebar({
         <div className="sidebar-section">
           <h3>Tools</h3>
           <div className="sidebar-items">
+            <button
+              className={`sidebar-item ${currentView.type === 'tasks' ? 'active' : ''}`}
+              onClick={onSelectTasks}
+            >
+              Tasks
+            </button>
             <button
               className={`sidebar-item ${currentView.type === 'planner' ? 'active' : ''}`}
               onClick={onSelectPlanner}

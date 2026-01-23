@@ -4,6 +4,7 @@ import { ProjectView } from './views/ProjectView'
 import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
 import { JobsView } from './views/JobsView'
+import { TasksView } from './views/TasksView'
 import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
 import './App.css'
@@ -11,6 +12,7 @@ import './App.css'
 type View =
   | { type: 'welcome' }
   | { type: 'project'; projectId: string }
+  | { type: 'tasks' }
   | { type: 'planner' }
   | { type: 'jobs' }
   | { type: 'settings' }
@@ -49,6 +51,7 @@ function App() {
           projects={projects}
           currentView={currentView}
           onSelectProject={(id) => setCurrentView({ type: 'project', projectId: id })}
+          onSelectTasks={() => setCurrentView({ type: 'tasks' })}
           onSelectPlanner={() => setCurrentView({ type: 'planner' })}
           onSelectJobs={() => setCurrentView({ type: 'jobs' })}
           onSelectSettings={() => setCurrentView({ type: 'settings' })}
@@ -67,6 +70,7 @@ function App() {
               onDeleteProject={handleDeleteProject}
             />
           )}
+          {currentView.type === 'tasks' && <TasksView />}
           {currentView.type === 'planner' && <PlannerView />}
           {currentView.type === 'jobs' && <JobsView />}
           {currentView.type === 'settings' && <SettingsView />}

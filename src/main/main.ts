@@ -487,8 +487,16 @@ Keep it concise and actionable.`
   })
 
   // Tasks
+  ipcMain.handle('tasks:getAll', async (_, projectId?: string) => {
+    return repository.getAllTasks(projectId)
+  })
+
   ipcMain.handle('tasks:getOpen', async (_, projectId?: string) => {
     return repository.getOpenTasks(projectId)
+  })
+
+  ipcMain.handle('tasks:getInbox', async () => {
+    return repository.getInboxTasks()
   })
 
   ipcMain.handle('tasks:create', async (_, input: any) => {

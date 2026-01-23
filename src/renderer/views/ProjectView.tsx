@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Project, Capture, ProjectSummary, Transcription, DesktopSource } from '../../types'
+import { Project, Capture, ProjectSummary, Transcription, DesktopSource, Task } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
 import './ProjectView.css'
+import './TasksView.css'
 
 interface ProjectViewProps {
   projectId: string
@@ -13,6 +14,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [project, setProject] = useState<Project | null>(null)
   const [captures, setCaptures] = useState<Capture[]>([])
   const [summary, setSummary] = useState<ProjectSummary | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingSummary, setGeneratingSummary] = useState(false)
   const [showTextModal, setShowTextModal] = useState(false)
@@ -23,11 +25,19 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [editingCapture, setEditingCapture] = useState<Capture | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
-  const [activeTab, setActiveTab] = useState<'summary' | 'captures'>('summary')
+  const [activeTab, setActiveTab] = useState<'summary' | 'captures' | 'tasks'>('summary')
   const [expandedCaptures, setExpandedCaptures] = useState<Set<string>>(new Set())
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false)
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [desktopSources, setDesktopSources] = useState<DesktopSource[]>([])
+
+  // Task modal state
+  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskEstimate, setTaskEstimate] = useState(30)
+  const [taskPriority, setTaskPriority] = useState(3)
+  const [taskNotes, setTaskNotes] = useState('')
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -86,6 +96,15 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }
 
+  const loadTasks = async () => {
+    try {
+      const projectTasks = await window.electron.tasks.getOpen(projectId)
+      setTasks(projectTasks)
+    } catch (error) {
+      console.error('Failed to reload tasks:', error)
+    }
+  }
+
   // Listen for global hotkey triggers
   // Store references to latest handlers
   const handleUploadImageRef = useRef<(() => Promise<void>) | null>(null)
@@ -131,10 +150,12 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       const proj = await window.electron.projects.get(projectId)
       const caps = await window.electron.captures.getByProject(projectId)
       const summ = await window.electron.summaries.getLatest(projectId)
+      const projectTasks = await window.electron.tasks.getOpen(projectId)
 
       setProject(proj)
       setCaptures(caps)
       setSummary(summ || null)
+      setTasks(projectTasks)
     } catch (error) {
       console.error('Failed to load project:', error)
     }
@@ -345,6 +366,94 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       }
       return newSet
     })
+  }
+
+  // Task handlers
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim()) return
+
+    try {
+      await window.electron.tasks.create({
+        title: taskTitle.trim(),
+        projectId: projectId,
+        estimateMinutes: taskEstimate,
+        priority: taskPriority,
+        notes: taskNotes.trim() || undefined
+      })
+
+      resetTaskForm()
+      setShowTaskModal(false)
+      await loadTasks()
+    } catch (error) {
+      console.error('Failed to create task:', error)
+      alert('Failed to create task')
+    }
+  }
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task)
+    setTaskTitle(task.title)
+    setTaskEstimate(task.estimateMinutes)
+    setTaskPriority(task.priority)
+    setTaskNotes(task.notes || '')
+    setShowTaskModal(true)
+  }
+
+  const handleSaveTask = async () => {
+    if (!editingTask || !taskTitle.trim()) return
+
+    try {
+      await window.electron.tasks.update(editingTask.id, {
+        title: taskTitle.trim(),
+        estimateMinutes: taskEstimate,
+        priority: taskPriority,
+        notes: taskNotes.trim() || undefined
+      })
+
+      resetTaskForm()
+      setEditingTask(null)
+      setShowTaskModal(false)
+      await loadTasks()
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      alert('Failed to update task')
+    }
+  }
+
+  const handleToggleTaskStatus = async (task: Task) => {
+    try {
+      await window.electron.tasks.update(task.id, {
+        status: task.status === 'open' ? 'done' : 'open'
+      })
+      await loadTasks()
+    } catch (error) {
+      console.error('Failed to toggle task status:', error)
+    }
+  }
+
+  const handleDeleteTask = async (task: Task) => {
+    if (!confirm(`Delete task "${task.title}"?`)) return
+
+    try {
+      await window.electron.tasks.delete(task.id)
+      await loadTasks()
+    } catch (error) {
+      console.error('Failed to delete task:', error)
+      alert('Failed to delete task')
+    }
+  }
+
+  const resetTaskForm = () => {
+    setTaskTitle('')
+    setTaskEstimate(30)
+    setTaskPriority(3)
+    setTaskNotes('')
+  }
+
+  const handleCloseTaskModal = () => {
+    resetTaskForm()
+    setEditingTask(null)
+    setShowTaskModal(false)
   }
 
   const handleUploadImage = async () => {
@@ -593,6 +702,12 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         >
           Captures
         </button>
+        <button
+          className={`tab ${activeTab === 'tasks' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          Tasks
+        </button>
       </div>
 
       {activeTab === 'summary' && (
@@ -655,6 +770,57 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
               {filteredCaptures.length === 0 && (
                 <div className="captures-empty">
                   No captures yet. Drop images here or create text captures.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'tasks' && (
+        <div className="tab-content">
+          <div className="tasks-section">
+            <div className="tasks-header">
+              <h2>Tasks ({tasks.length})</h2>
+              <button onClick={() => setShowTaskModal(true)}>+ New Task</button>
+            </div>
+
+            <div className="task-list">
+              {tasks.map(task => (
+                <div key={task.id} className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
+                  <div className="task-card-header">
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'done'}
+                      onChange={() => handleToggleTaskStatus(task)}
+                    />
+                    <span className={`priority-badge priority-${task.priority}`}>
+                      P{task.priority}
+                    </span>
+                    <h3 className="task-title">{task.title}</h3>
+                  </div>
+
+                  <div className="task-card-meta">
+                    <span className="task-estimate">{task.estimateMinutes} min</span>
+
+                    <div className="task-actions">
+                      <button className="icon-btn" onClick={() => handleEditTask(task)} title="Edit">
+                        ✏️
+                      </button>
+                      <button className="icon-btn delete" onClick={() => handleDeleteTask(task)} title="Delete">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  {task.notes && (
+                    <div className="task-notes">{task.notes}</div>
+                  )}
+                </div>
+              ))}
+              {tasks.length === 0 && (
+                <div className="tasks-empty">
+                  No tasks yet. Click "+ New Task" to create one.
                 </div>
               )}
             </div>
@@ -749,6 +915,71 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
             <div className="modal-actions">
               <button className="secondary" onClick={() => setShowSourcePicker(false)}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTaskModal && (
+        <div className="modal-overlay" onClick={handleCloseTaskModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{editingTask ? 'Edit Task' : 'New Task'}</h2>
+
+            <div className="form-group">
+              <label>Title *</label>
+              <input
+                type="text"
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+                placeholder="Task title"
+                autoFocus
+              />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Estimate (minutes)</label>
+                <input
+                  type="number"
+                  value={taskEstimate}
+                  onChange={(e) => setTaskEstimate(parseInt(e.target.value))}
+                  min="5"
+                  step="5"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Priority (1-5)</label>
+                <input
+                  type="number"
+                  value={taskPriority}
+                  onChange={(e) => setTaskPriority(parseInt(e.target.value))}
+                  min="1"
+                  max="5"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Notes</label>
+              <textarea
+                value={taskNotes}
+                onChange={(e) => setTaskNotes(e.target.value)}
+                placeholder="Additional details"
+                rows={3}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button className="secondary" onClick={handleCloseTaskModal}>
+                Cancel
+              </button>
+              <button
+                onClick={editingTask ? handleSaveTask : handleCreateTask}
+                disabled={!taskTitle.trim()}
+              >
+                {editingTask ? 'Save' : 'Create'}
               </button>
             </div>
           </div>
