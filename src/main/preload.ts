@@ -58,6 +58,7 @@ const api = {
 
   // Tasks
   tasks: {
+    getAll: (projectId?: string) => ipcRenderer.invoke('tasks:getAll', projectId),
     getOpen: (projectId?: string) => ipcRenderer.invoke('tasks:getOpen', projectId),
     create: (input: any) => ipcRenderer.invoke('tasks:create', input),
     update: (id: string, input: any) => ipcRenderer.invoke('tasks:update', id, input),

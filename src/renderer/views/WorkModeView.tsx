@@ -35,10 +35,14 @@ export function WorkModeView() {
   const loadActiveTask = async () => {
     setLoading(true)
     try {
+      console.log('[WorkModeView] Loading active task...')
       const task = await window.electron.workMode.getActiveTask()
+      console.log('[WorkModeView] Got active task:', task)
       if (!task) {
-        // No active task - shouldn't happen, but close window if it does
-        window.close()
+        console.warn('[WorkModeView] No active task found')
+        // Don't auto-close anymore - let user see error and close manually
+        setActiveTask(null)
+        setLoading(false)
         return
       }
       setActiveTask(task)
@@ -139,7 +143,23 @@ export function WorkModeView() {
   if (!activeTask) {
     return (
       <div className="work-mode-view">
-        <div className="error">No active task</div>
+        <div className="work-mode-titlebar" style={{ WebkitAppRegion: 'drag' } as any}>
+          <div className="drag-handle">⋮⋮</div>
+          <div className="task-name">No Active Task</div>
+          <button
+            className="close-btn"
+            onClick={() => window.close()}
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+          >
+            ✕
+          </button>
+        </div>
+        <div className="error-content">
+          <div className="error-message">No active task selected</div>
+          <button className="error-action" onClick={() => window.close()}>
+            Close Window
+          </button>
+        </div>
       </div>
     )
   }

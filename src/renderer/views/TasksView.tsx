@@ -29,7 +29,7 @@ export function TasksView() {
     try {
       const [allProjects, allTasks] = await Promise.all([
         window.electron.projects.getAll(),
-        window.electron.tasks.getOpen()
+        window.electron.tasks.getAll()  // Load ALL tasks, filter on frontend
       ])
 
       setProjects(allProjects)
@@ -118,8 +118,11 @@ export function TasksView() {
 
   const handleStartWorkMode = async (task: Task) => {
     try {
+      console.log('[TasksView] Setting active task:', task.id, task.title)
       await window.electron.workMode.setActiveTask(task.id)
+      console.log('[TasksView] Active task set, opening window')
       await window.electron.workMode.openWindow()
+      console.log('[TasksView] Window opened')
     } catch (error) {
       console.error('Failed to start work mode:', error)
       alert('Failed to start work mode')

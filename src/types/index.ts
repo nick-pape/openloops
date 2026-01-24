@@ -144,6 +144,7 @@ declare global {
         generate: (projectId: string) => Promise<void>
       }
       tasks: {
+        getAll: (projectId?: string) => Promise<Task[]>
         getOpen: (projectId?: string) => Promise<Task[]>
         create: (input: any) => Promise<Task>
         update: (id: string, input: any) => Promise<Task>
