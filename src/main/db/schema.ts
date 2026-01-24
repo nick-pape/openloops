@@ -13,7 +13,7 @@ export const captures = sqliteTable('captures', {
   projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   linkedTaskId: text('linked_task_id').references(() => tasks.id, { onDelete: 'cascade' }),
   type: text('type', { enum: ['text', 'image', 'audio'] }).notNull(),
-  title: text('title').notNull(),
+  title: text('title'), // Nullable - AI generates titles
   bodyText: text('body_text'),
   filePath: text('file_path'),
   metadata: text('metadata'),
@@ -89,7 +89,7 @@ export const dayPlanBlocks = sqliteTable('day_plan_blocks', {
 
 export const jobQueue = sqliteTable('job_queue', {
   id: text('id').primaryKey(),
-  type: text('type', { enum: ['transcription', 'summary', 'image-description'] }).notNull(),
+  type: text('type', { enum: ['transcription', 'summary', 'image-description', 'text-title-generation'] }).notNull(),
   status: text('status', { enum: ['pending', 'processing', 'done', 'error'] }).notNull().default('pending'),
   payload: text('payload').notNull(),
   result: text('result'),

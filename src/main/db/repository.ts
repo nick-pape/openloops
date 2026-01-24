@@ -446,7 +446,7 @@ export class Repository {
   }
 
   // Job Queue
-  async enqueueJob(type: 'transcription' | 'summary' | 'image-description', payload: any) {
+  async enqueueJob(type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation', payload: any) {
     const db = getDatabase()
     const id = uuidv4()
     const now = new Date()
@@ -491,7 +491,7 @@ export class Repository {
     })
   }
 
-  async getNextPendingJob(type: 'transcription' | 'summary' | 'image-description') {
+  async getNextPendingJob(type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation') {
     const db = getDatabase()
     const result = await db.select().from(schema.jobQueue)
       .where(and(

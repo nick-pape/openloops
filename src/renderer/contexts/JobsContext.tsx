@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 export interface Job {
   id: string
-  type: 'transcription' | 'summary' | 'image-description'
+  type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation'
   status: 'pending' | 'processing' | 'done' | 'error'
   payload: string
   result?: string | null

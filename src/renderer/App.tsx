@@ -7,6 +7,7 @@ import { JobsView } from './views/JobsView'
 import { TasksView } from './views/TasksView'
 import { HotkeysView } from './views/HotkeysView'
 import { WorkModeView } from './views/WorkModeView'
+import { TextCaptureView } from './views/TextCaptureView'
 import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
 import './App.css'
@@ -26,9 +27,10 @@ function App() {
 
   // Check if this is the Work Mode window
   const isWorkModeWindow = window.location.hash === '#/work-mode'
+  const isTextCaptureWindow = window.location.hash === '#/text-capture'
 
   useEffect(() => {
-    if (!isWorkModeWindow) {
+    if (!isWorkModeWindow && !isTextCaptureWindow) {
       loadProjects()
     }
   }, [])
@@ -55,6 +57,11 @@ function App() {
   // Render Work Mode window separately (no sidebar, different layout)
   if (isWorkModeWindow) {
     return <WorkModeView />
+  }
+
+  // Render Text Capture window separately
+  if (isTextCaptureWindow) {
+    return <TextCaptureView />
   }
 
   return (

@@ -26,6 +26,7 @@ export interface LLMProvider {
   baseUrl?: string
   generateSummary(prompt: string, context: string): Promise<LLMResult>
   generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult>
+  generateTextTitle(bodyText: string, previousTitle?: string): Promise<LLMResult>
 }
 
 // Remote Transcription Provider (OpenAI Whisper API)
@@ -224,6 +225,59 @@ export class RemoteLLMProvider implements LLMProvider {
       }
     }
   }
+
+  async generateTextTitle(bodyText: string, previousTitle?: string): Promise<LLMResult> {
+    const startTime = Date.now()
+
+    let prompt: string
+    if (previousTitle) {
+      prompt = `The current title is: "${previousTitle}"\n\nText content: ${bodyText}\n\nGenerate an updated title (max 60 characters), or keep the current title if it still accurately represents the content. Only output the title, nothing else.`
+    } else {
+      prompt = `Generate a concise, descriptive title (max 60 characters) for this text note:\n\n${bodyText}\n\nOnly output the title, nothing else.`
+    }
+
+    const requestParams = {
+      model: this.model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 30,
+      temperature: 0.5
+    }
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestParams)
+    })
+
+    if (!response.ok) {
+      throw new Error(`Text title generation failed: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    const durationMs = Date.now() - startTime
+
+    return {
+      text: data.choices[0].message.content.trim(),
+      metadata: {
+        baseUrl: this.baseUrl,
+        model: this.model,
+        requestParams: {
+          max_tokens: 30,
+          temperature: 0.5
+        },
+        tokensUsed: data.usage?.total_tokens,
+        durationMs
+      }
+    }
+  }
 }
 
 // Disabled LLM Provider (local fallback)
@@ -261,6 +315,17 @@ ${lines.slice(0, 10).join('\n')}
 
   async generateImageTitle(_imageBase64: string, _mimeType: string): Promise<LLMResult> {
     // No-op: return empty string, caller will keep the filename
+    return {
+      text: '',
+      metadata: {
+        model: 'none',
+        durationMs: 0
+      }
+    }
+  }
+
+  async generateTextTitle(_bodyText: string, _previousTitle?: string): Promise<LLMResult> {
+    // No-op: return empty string, title stays null
     return {
       text: '',
       metadata: {

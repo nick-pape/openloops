@@ -5,10 +5,12 @@ import { initDatabase, closeDatabase } from './db/database'
 import { repository } from './db/repository'
 import { activeTaskService } from './work-mode/active-task-service'
 import { workModeWindow } from './windows/work-mode-window'
+import { textCaptureWindow } from './windows/text-capture-window'
 import { jobManager } from './workers/job-manager'
 import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
 import { screenshotHandler } from './screenshot/screenshot-handler'
+import { AppEvents, broadcastEvent } from './events'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -161,6 +163,36 @@ app.whenReady().then(async () => {
     console.log('[Global Hotkey] Registered Ctrl+Shift+W for Work Mode')
   }
 
+  // Register global hotkey for Text Capture (Ctrl+Shift+T)
+  const textCaptureSuccess = globalShortcut.register('CommandOrControl+Shift+T', () => {
+    console.log('[Global Hotkey] Text capture triggered (Ctrl+Shift+T)')
+    textCaptureWindow.create()
+  })
+
+  if (!textCaptureSuccess) {
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+T')
+  } else {
+    console.log('[Global Hotkey] Registered Ctrl+Shift+T for text capture')
+  }
+
+  // Register global hotkey for Audio Recording (Ctrl+Shift+R)
+  const audioRecordSuccess = globalShortcut.register('CommandOrControl+Shift+R', () => {
+    console.log('[Global Hotkey] Audio recording triggered (Ctrl+Shift+R)')
+    // Send event to Work Mode window if open
+    if (workModeWindow.isOpen()) {
+      // TODO: Implement audio recording trigger
+      console.log('[Global Hotkey] Work Mode is open, audio recording not yet implemented')
+    } else {
+      console.log('[Global Hotkey] Work Mode not open, audio recording requires Work Mode')
+    }
+  })
+
+  if (!audioRecordSuccess) {
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+R')
+  } else {
+    console.log('[Global Hotkey] Registered Ctrl+Shift+R for audio recording')
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
@@ -213,15 +245,20 @@ function setupIPC() {
   })
 
   ipcMain.handle('projects:create', async (_, name: string) => {
-    return repository.createProject({ name })
+    const project = await repository.createProject({ name })
+    broadcastEvent(AppEvents.projectCreated(), project)
+    return project
   })
 
   ipcMain.handle('projects:update', async (_, id: string, name: string) => {
-    return repository.updateProject(id, name)
+    const project = await repository.updateProject(id, name)
+    broadcastEvent(AppEvents.projectUpdated(), project)
+    return project
   })
 
   ipcMain.handle('projects:delete', async (_, id: string) => {
     await repository.deleteProject(id)
+    broadcastEvent(AppEvents.projectDeleted(), { id })
   })
 
   // Captures
@@ -230,19 +267,30 @@ function setupIPC() {
   })
 
   ipcMain.handle('captures:create', async (_, input: any) => {
-    return repository.createCapture(input)
+    const capture = await repository.createCapture(input)
+    broadcastEvent(AppEvents.captureCreated(capture.projectId), capture)
+    return capture
   })
 
   ipcMain.handle('captures:toggleOpenLoop', async (_, captureId: string) => {
     await repository.toggleCaptureOpenLoop(captureId)
+    const capture = await repository.getCapture(captureId)
+    if (capture) {
+      broadcastEvent(AppEvents.captureUpdated(capture.projectId), capture)
+    }
   })
 
   ipcMain.handle('captures:update', async (_, id: string, title: string, bodyText: string) => {
-    return repository.updateCapture(id, title, bodyText)
+    const capture = await repository.updateCapture(id, title, bodyText)
+    broadcastEvent(AppEvents.captureUpdated(capture.projectId), capture)
+    return capture
   })
 
   ipcMain.handle('captures:delete', async (_, id: string) => {
+    const capture = await repository.getCapture(id)
+    const projectId = capture?.projectId || null
     await repository.deleteCapture(id)
+    broadcastEvent(AppEvents.captureDeleted(projectId), { id })
   })
 
   ipcMain.handle('captures:getTranscription', async (_, captureId: string) => {
@@ -514,15 +562,22 @@ Keep it concise and actionable.`
   })
 
   ipcMain.handle('tasks:create', async (_, input: any) => {
-    return repository.createTask(input)
+    const task = await repository.createTask(input)
+    broadcastEvent(AppEvents.taskCreated(task.projectId), task)
+    return task
   })
 
   ipcMain.handle('tasks:update', async (_, id: string, input: any) => {
-    return repository.updateTask(id, input)
+    const task = await repository.updateTask(id, input)
+    broadcastEvent(AppEvents.taskUpdated(task.projectId), task)
+    return task
   })
 
   ipcMain.handle('tasks:delete', async (_, id: string) => {
+    const task = await repository.getTask(id)
+    const projectId = task?.projectId || null
     await repository.deleteTask(id)
+    broadcastEvent(AppEvents.taskDeleted(projectId), { id })
   })
 
   // Work Mode
@@ -548,6 +603,47 @@ Keep it concise and actionable.`
 
   ipcMain.handle('workMode:toggleWindow', async () => {
     workModeWindow.toggle()
+  })
+
+  // Text Capture
+  ipcMain.handle('textCapture:openWindow', async () => {
+    await textCaptureWindow.create()
+  })
+
+  ipcMain.handle('textCapture:closeWindow', async () => {
+    textCaptureWindow.close()
+  })
+
+  ipcMain.handle('textCapture:save', async (_, text: string) => {
+    // Get active task if any
+    const activeTask = await activeTaskService.getActiveTask()
+
+    // Create the capture with null title (AI will generate it)
+    const capture = await repository.createCapture({
+      projectId: activeTask?.projectId || null,
+      taskId: activeTask?.id || null,
+      type: 'text',
+      bodyText: text,
+      title: null,
+      isOpenLoop: false
+    })
+
+    // Broadcast capture created event
+    broadcastEvent(AppEvents.captureCreated(capture.projectId), capture)
+
+    // Enqueue AI title generation job
+    const jobId = await jobManager.enqueueTextTitleGeneration(capture.id, text)
+
+    // Emit event to renderer with newly created job
+    const job = await repository.getJob(jobId)
+    if (job && mainWindow) {
+      mainWindow.webContents.send('job:updated', job)
+    }
+
+    // Close the text capture window
+    textCaptureWindow.close()
+
+    return capture
   })
 
   // Calendar

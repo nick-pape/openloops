@@ -43,7 +43,7 @@ function runMigrations() {
       project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
       linked_task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
       type TEXT NOT NULL CHECK(type IN ('text', 'image', 'audio')),
-      title TEXT NOT NULL,
+      title TEXT,
       body_text TEXT,
       file_path TEXT,
       metadata TEXT,
@@ -123,7 +123,7 @@ function runMigrations() {
 
     CREATE TABLE IF NOT EXISTS job_queue (
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL CHECK(type IN ('transcription', 'summary', 'image-description')),
+      type TEXT NOT NULL CHECK(type IN ('transcription', 'summary', 'image-description', 'text-title-generation')),
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'done', 'error')),
       payload TEXT NOT NULL,
       result TEXT,

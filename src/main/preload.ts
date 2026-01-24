@@ -75,6 +75,13 @@ const api = {
     toggleWindow: () => ipcRenderer.invoke('workMode:toggleWindow')
   },
 
+  // Text Capture
+  textCapture: {
+    openWindow: () => ipcRenderer.invoke('textCapture:openWindow'),
+    closeWindow: () => ipcRenderer.invoke('textCapture:closeWindow'),
+    save: (text: string) => ipcRenderer.invoke('textCapture:save', text)
+  },
+
   // Calendar
   calendar: {
     importICS: () => ipcRenderer.invoke('calendar:importICS'),
@@ -139,6 +146,58 @@ const api = {
   },
   offJobUpdated: (callback: (job: any) => void) => {
     ipcRenderer.removeListener('job:updated', callback)
+  },
+
+  // Capture events (project-scoped)
+  onCaptureCreated: (projectId: string | null, callback: (capture: any) => void) => {
+    const channel = `capture:created:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, capture) => callback(capture))
+  },
+  offCaptureCreated: (projectId: string | null, callback: any) => {
+    const channel = `capture:created:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
+  },
+  onCaptureUpdated: (projectId: string | null, callback: (capture: any) => void) => {
+    const channel = `capture:updated:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, capture) => callback(capture))
+  },
+  offCaptureUpdated: (projectId: string | null, callback: any) => {
+    const channel = `capture:updated:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
+  },
+  onCaptureDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => {
+    const channel = `capture:deleted:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, data) => callback(data))
+  },
+  offCaptureDeleted: (projectId: string | null, callback: any) => {
+    const channel = `capture:deleted:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
+  },
+
+  // Task events (project-scoped)
+  onTaskCreated: (projectId: string | null, callback: (task: any) => void) => {
+    const channel = `task:created:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, task) => callback(task))
+  },
+  offTaskCreated: (projectId: string | null, callback: any) => {
+    const channel = `task:created:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
+  },
+  onTaskUpdated: (projectId: string | null, callback: (task: any) => void) => {
+    const channel = `task:updated:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, task) => callback(task))
+  },
+  offTaskUpdated: (projectId: string | null, callback: any) => {
+    const channel = `task:updated:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
+  },
+  onTaskDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => {
+    const channel = `task:deleted:${projectId || 'inbox'}`
+    ipcRenderer.on(channel, (_event, data) => callback(data))
+  },
+  offTaskDeleted: (projectId: string | null, callback: any) => {
+    const channel = `task:deleted:${projectId || 'inbox'}`
+    ipcRenderer.removeListener(channel, callback)
   }
 }
 

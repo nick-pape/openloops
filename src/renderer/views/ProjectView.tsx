@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Project, Capture, ProjectSummary, Transcription, DesktopSource, Task } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
@@ -17,13 +17,9 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingSummary, setGeneratingSummary] = useState(false)
-  const [showTextModal, setShowTextModal] = useState(false)
-  const [textTitle, setTextTitle] = useState('')
-  const [textBody, setTextBody] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [filterType, setFilterType] = useState<string>('all')
   const [editingCapture, setEditingCapture] = useState<Capture | null>(null)
-  const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
   const [activeTab, setActiveTab] = useState<'summary' | 'captures' | 'tasks'>('summary')
   const [expandedCaptures, setExpandedCaptures] = useState<Set<string>>(new Set())
@@ -74,36 +70,75 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       } else if (job.type === 'transcription') {
         console.log('[ProjectView] Transcription completed, reloading captures')
         loadCaptures()
+      } else if (job.type === 'text-title-generation') {
+        console.log('[ProjectView] Text title generation completed, reloading captures')
+        loadCaptures()
       }
     }
   }, [jobs])
 
-  const loadCaptures = async () => {
+  const loadCaptures = useCallback(async () => {
     try {
       const caps = await window.electron.captures.getByProject(projectId)
       setCaptures(caps)
     } catch (error) {
       console.error('Failed to reload captures:', error)
     }
-  }
+  }, [projectId])
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const summ = await window.electron.summaries.getLatest(projectId)
       setSummary(summ || null)
     } catch (error) {
       console.error('Failed to reload summary:', error)
     }
-  }
+  }, [projectId])
 
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     try {
       const projectTasks = await window.electron.tasks.getOpen(projectId)
       setTasks(projectTasks)
     } catch (error) {
       console.error('Failed to reload tasks:', error)
     }
-  }
+  }, [projectId])
+
+  // Subscribe to capture events for this project
+  const handleCaptureEvent = useCallback(() => {
+    console.log('[ProjectView] Capture event received, reloading captures')
+    loadCaptures()
+  }, [loadCaptures])
+
+  useEffect(() => {
+    window.electron.onCaptureCreated(projectId, handleCaptureEvent)
+    window.electron.onCaptureUpdated(projectId, handleCaptureEvent)
+    window.electron.onCaptureDeleted(projectId, handleCaptureEvent)
+
+    return () => {
+      window.electron.offCaptureCreated(projectId, handleCaptureEvent)
+      window.electron.offCaptureUpdated(projectId, handleCaptureEvent)
+      window.electron.offCaptureDeleted(projectId, handleCaptureEvent)
+    }
+  }, [projectId, handleCaptureEvent])
+
+  // Subscribe to task events for this project
+  const handleTaskEvent = useCallback(() => {
+    console.log('[ProjectView] Task event received, reloading tasks')
+    loadTasks()
+  }, [loadTasks])
+
+  useEffect(() => {
+    window.electron.onTaskCreated(projectId, handleTaskEvent)
+    window.electron.onTaskUpdated(projectId, handleTaskEvent)
+    window.electron.onTaskDeleted(projectId, handleTaskEvent)
+
+    return () => {
+      window.electron.offTaskCreated(projectId, handleTaskEvent)
+      window.electron.offTaskUpdated(projectId, handleTaskEvent)
+      window.electron.offTaskDeleted(projectId, handleTaskEvent)
+    }
+  }, [projectId, handleTaskEvent])
 
   // Listen for global hotkey triggers
   // Store references to latest handlers
@@ -173,26 +208,6 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       console.error('Failed to enqueue summary generation:', error)
       alert(`Failed to generate summary: ${error}`)
       setGeneratingSummary(false)
-    }
-  }
-
-  const handleCreateTextCapture = async () => {
-    if (!textTitle.trim()) return
-
-    try {
-      await window.electron.captures.create({
-        projectId,
-        type: 'text',
-        title: textTitle.trim(),
-        bodyText: textBody.trim()
-      })
-
-      setTextTitle('')
-      setTextBody('')
-      setShowTextModal(false)
-      await loadProject()
-    } catch (error) {
-      console.error('Failed to create text capture:', error)
     }
   }
 
@@ -324,17 +339,16 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   const handleEditCapture = (capture: Capture) => {
     setEditingCapture(capture)
-    setEditTitle(capture.title)
     setEditBody(capture.bodyText || '')
   }
 
   const handleSaveEdit = async () => {
-    if (!editingCapture || !editTitle.trim()) return
+    if (!editingCapture) return
 
     try {
-      await window.electron.captures.update(editingCapture.id, editTitle.trim(), editBody.trim())
+      // Keep existing title, only update bodyText
+      await window.electron.captures.update(editingCapture.id, editingCapture.title || '', editBody.trim())
       setEditingCapture(null)
-      setEditTitle('')
       setEditBody('')
       await loadProject()
     } catch (error) {
@@ -771,7 +785,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                   {isCapturingScreenshot ? '⏳ Capturing...' : '📸 Screenshot'}
                 </button>
                 <button onClick={handleUploadImage}>🖼️ Image</button>
-                <button onClick={() => setShowTextModal(true)}>+ Text</button>
+                <button onClick={() => window.electron.textCapture.openWindow()}>+ Text</button>
                 <button onClick={isRecording ? handleStopRecording : handleStartRecording}>
                   {isRecording ? '⏹ Stop' : '🎤 Record'}
                 </button>
@@ -855,67 +869,31 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         </div>
       )}
 
-      {showTextModal && (
-        <div className="modal-overlay" onClick={() => setShowTextModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>New Text Capture</h2>
-            <div className="form-group">
-              <label>Title</label>
-              <input
-                type="text"
-                value={textTitle}
-                onChange={(e) => setTextTitle(e.target.value)}
-                placeholder="Enter title"
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label>Notes (optional)</label>
-              <textarea
-                value={textBody}
-                onChange={(e) => setTextBody(e.target.value)}
-                placeholder="Enter details"
-              />
-            </div>
-            <div className="modal-actions">
-              <button className="secondary" onClick={() => setShowTextModal(false)}>
-                Cancel
-              </button>
-              <button onClick={handleCreateTextCapture} disabled={!textTitle.trim()}>
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {editingCapture && (
         <div className="modal-overlay" onClick={() => setEditingCapture(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h2>Edit Text Capture</h2>
+            {editingCapture.title && (
+              <div className="form-group">
+                <label>Title (AI-generated)</label>
+                <div className="read-only-title">{editingCapture.title}</div>
+              </div>
+            )}
             <div className="form-group">
-              <label>Title</label>
-              <input
-                type="text"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                placeholder="Enter title"
-                autoFocus
-              />
-            </div>
-            <div className="form-group">
-              <label>Notes (optional)</label>
+              <label>Text Content</label>
               <textarea
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
-                placeholder="Enter details"
+                placeholder="Enter text"
+                autoFocus
+                rows={10}
               />
             </div>
             <div className="modal-actions">
               <button className="secondary" onClick={() => setEditingCapture(null)}>
                 Cancel
               </button>
-              <button onClick={handleSaveEdit} disabled={!editTitle.trim()}>
+              <button onClick={handleSaveEdit}>
                 Save
               </button>
             </div>
@@ -1070,7 +1048,7 @@ function CaptureAccordion({
           <span className={`capture-type capture-type-${capture.type}`}>
             {capture.type}
           </span>
-          <h3>{capture.title}</h3>
+          <h3>{capture.title || `Untitled ${capture.type} note`}</h3>
           <span className="capture-date">
             {new Date(capture.createdAt).toLocaleString()}
           </span>
@@ -1082,7 +1060,7 @@ function CaptureAccordion({
                 ✏️
               </button>
             )}
-            <button className="capture-action-btn delete" onClick={() => onDelete(capture.id, capture.title)} title="Delete">
+            <button className="capture-action-btn delete" onClick={() => onDelete(capture.id, capture.title || `Untitled ${capture.type} note`)} title="Delete">
               🗑️
             </button>
           </div>
@@ -1098,6 +1076,13 @@ function CaptureAccordion({
             </div>
           )}
           {imageData && <img src={imageData} alt={capture.title} className="capture-image" />}
+          {capture.type === 'audio' && capture.filePath && (
+            <div className="audio-player-container">
+              <audio controls src={`file://${capture.filePath}`} className="audio-player">
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          )}
           {capture.type === 'audio' && transcription && (
             <div className="transcription">
               <strong>Transcription:</strong>

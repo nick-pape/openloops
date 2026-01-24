@@ -13,7 +13,7 @@ import fs from 'fs'
 console.log('[Job Worker] Worker thread started')
 
 interface JobMessage {
-  type: 'transcription' | 'summary' | 'image-description'
+  type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation'
   jobId: string
   payload: any
   dbPath: string
@@ -45,6 +45,8 @@ parentPort?.on('message', async (message: JobMessage) => {
       result = await handleSummary(payload, config, db, jobId)
     } else if (type === 'image-description') {
       result = await handleImageDescription(payload, config, db, jobId)
+    } else if (type === 'text-title-generation') {
+      result = await handleTextTitleGeneration(payload, config, db, jobId)
     } else {
       throw new Error(`Unknown job type: ${type}`)
     }
@@ -202,6 +204,68 @@ async function handleImageDescription(
   console.log('[Job Worker] Generating image title...')
   const result = await llmProvider.generateImageTitle(base64, mimeType)
   console.log('[Job Worker] Image title generated:', result.text)
+
+  // Update job with provider metadata
+  await db.update(schema.jobQueue)
+    .set({
+      provider: llmProvider.name,
+      model: llmProvider.model,
+      metadata: JSON.stringify(result.metadata)
+    })
+    .where(eq(schema.jobQueue.id, jobId))
+
+  // Update capture title if we got a result
+  if (result.text && result.text.trim()) {
+    const capture = await db.select()
+      .from(schema.captures)
+      .where(eq(schema.captures.id, payload.captureId))
+      .limit(1)
+
+    if (capture[0]) {
+      await db.update(schema.captures)
+        .set({ title: result.text.trim() })
+        .where(eq(schema.captures.id, payload.captureId))
+    }
+  }
+
+  return result.text
+}
+
+async function handleTextTitleGeneration(
+  payload: { captureId: string; bodyText: string; previousTitle?: string },
+  config: any,
+  db: any,
+  jobId: string
+): Promise<string> {
+  console.log('[Job Worker] Handling text-title-generation job')
+  console.log('[Job Worker] Capture ID:', payload.captureId)
+
+  const factory = new ProviderFactory()
+
+  if (!llmProvider) {
+    console.log('[Job Worker] Creating LLM provider for text title generation...')
+    llmProvider = factory.createLLMProvider(config.llm)
+    console.log('[Job Worker] LLM provider created:', llmProvider.name)
+  }
+
+  // Check if LLM provider is disabled
+  if (llmProvider.name === 'disabled') {
+    console.log('[Job Worker] LLM provider is disabled, skipping text title generation')
+
+    // Update job with provider info
+    await db.update(schema.jobQueue)
+      .set({
+        provider: 'disabled',
+        model: 'none'
+      })
+      .where(eq(schema.jobQueue.id, jobId))
+
+    return '' // Return empty string, title stays null
+  }
+
+  console.log('[Job Worker] Generating text title...')
+  const result = await llmProvider.generateTextTitle(payload.bodyText, payload.previousTitle)
+  console.log('[Job Worker] Text title generated:', result.text)
 
   // Update job with provider metadata
   await db.update(schema.jobQueue)

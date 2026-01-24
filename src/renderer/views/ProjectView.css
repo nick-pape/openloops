@@ -376,6 +376,18 @@
   margin-top: 1rem;
 }
 
+/* Audio Player */
+.audio-player-container {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.audio-player {
+  width: 100%;
+  max-width: 500px;
+  outline: none;
+}
+
 .transcription {
   background: #f8f9fa;
   padding: 1rem;
@@ -446,3 +458,16 @@
   word-break: break-word;
   font-weight: 500;
 }
+
+
+/* Read-only title display in edit modal */
+.read-only-title {
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  color: #495057;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+

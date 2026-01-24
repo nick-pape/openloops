@@ -81,6 +81,21 @@ export class JobManager {
     return jobId
   }
 
+  async enqueueTextTitleGeneration(captureId: string, bodyText: string, previousTitle?: string): Promise<string> {
+    console.log('[JobManager] Enqueueing text-title-generation job for capture:', captureId)
+    const jobId = await repository.enqueueJob('text-title-generation', {
+      captureId,
+      bodyText,
+      previousTitle
+    })
+    console.log('[JobManager] Text-title-generation job enqueued with ID:', jobId)
+
+    // Trigger immediate processing
+    this.processPendingJobs()
+
+    return jobId
+  }
+
   private async processPendingJobs() {
     if (this.isProcessing) {
       return
@@ -97,12 +112,15 @@ export class JobManager {
 
       // Process image-description jobs
       await this.processJobType('image-description')
+
+      // Process text-title-generation jobs
+      await this.processJobType('text-title-generation')
     } finally {
       this.isProcessing = false
     }
   }
 
-  private async processJobType(type: 'transcription' | 'summary' | 'image-description') {
+  private async processJobType(type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation') {
     const job = await repository.getNextPendingJob(type)
 
     if (!job) {

@@ -147,6 +147,104 @@ export const migrations: Migration[] = [
 
       console.log('[Migration] Completed: add-task-linked-captures')
     }
+  },
+  {
+    version: 4,
+    name: 'make-title-nullable-and-add-text-title-job',
+    up: (db) => {
+      console.log('[Migration] Running: make-title-nullable-and-add-text-title-job')
+
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        -- Recreate captures table with nullable title
+        CREATE TABLE captures_new (
+          id TEXT PRIMARY KEY,
+          project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+          linked_task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('text', 'image', 'audio')),
+          title TEXT,
+          body_text TEXT,
+          file_path TEXT,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          CHECK (
+            (project_id IS NOT NULL AND linked_task_id IS NULL) OR
+            (project_id IS NULL AND linked_task_id IS NOT NULL)
+          )
+        );
+
+        -- Copy existing data
+        INSERT INTO captures_new SELECT * FROM captures;
+
+        -- Backup and recreate dependent tables
+        CREATE TEMP TABLE capture_flags_backup AS SELECT * FROM capture_flags;
+        DROP TABLE capture_flags;
+
+        CREATE TABLE capture_flags (
+          id TEXT PRIMARY KEY,
+          capture_id TEXT NOT NULL REFERENCES captures_new(id) ON DELETE CASCADE,
+          is_open_loop INTEGER NOT NULL DEFAULT 0
+        );
+
+        INSERT INTO capture_flags SELECT * FROM capture_flags_backup;
+        DROP TABLE capture_flags_backup;
+
+        CREATE TEMP TABLE transcriptions_backup AS SELECT * FROM transcriptions;
+        DROP TABLE transcriptions;
+
+        CREATE TABLE transcriptions (
+          id TEXT PRIMARY KEY,
+          capture_id TEXT NOT NULL REFERENCES captures_new(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'error')),
+          text TEXT,
+          error_message TEXT,
+          provider TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        INSERT INTO transcriptions SELECT * FROM transcriptions_backup;
+        DROP TABLE transcriptions_backup;
+
+        -- Drop old captures table
+        DROP TABLE captures;
+
+        -- Rename new table
+        ALTER TABLE captures_new RENAME TO captures;
+
+        -- Recreate indexes
+        CREATE INDEX IF NOT EXISTS idx_captures_project ON captures(project_id);
+        CREATE INDEX IF NOT EXISTS idx_captures_task ON captures(linked_task_id);
+        CREATE INDEX IF NOT EXISTS idx_captures_created ON captures(created_at DESC);
+
+        -- Update job_queue to include text-title-generation
+        CREATE TABLE job_queue_new (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL CHECK(type IN ('transcription', 'summary', 'image-description', 'text-title-generation')),
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'done', 'error')),
+          payload TEXT NOT NULL,
+          result TEXT,
+          error_message TEXT,
+          provider TEXT,
+          model TEXT,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        INSERT INTO job_queue_new (id, type, status, payload, result, error_message, provider, model, metadata, created_at, updated_at)
+        SELECT id, type, status, payload, result, error_message, provider, model, metadata, created_at, updated_at FROM job_queue;
+        DROP TABLE job_queue;
+        ALTER TABLE job_queue_new RENAME TO job_queue;
+
+        CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status, type);
+
+        COMMIT;
+      `)
+
+      console.log('[Migration] Completed: make-title-nullable-and-add-text-title-job')
+    }
   }
 ]
 

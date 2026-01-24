@@ -1,0 +1,125 @@
+.text-capture-view {
+  width: 100%;
+  height: 100vh;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+.text-capture-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #667eea;
+  color: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  cursor: move;
+}
+
+.text-capture-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.text-capture-header .close-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.text-capture-header .close-btn:hover {
+  opacity: 1;
+}
+
+/* Content */
+.text-capture-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.text-capture-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: none;
+}
+
+.text-capture-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.text-capture-textarea::placeholder {
+  color: #999;
+}
+
+/* Footer */
+.text-capture-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  border-top: 1px solid #eee;
+}
+
+.char-count {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.text-capture-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.text-capture-actions button {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.text-capture-actions button:not(.secondary) {
+  background: #667eea;
+  color: white;
+}
+
+.text-capture-actions button:not(.secondary):hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.text-capture-actions button.secondary {
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.text-capture-actions button.secondary:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.text-capture-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
