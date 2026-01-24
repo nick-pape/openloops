@@ -77,39 +77,25 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
-.task-actions-inline {
+.timer-toggle {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
   display: flex;
-  gap: 0.5rem;
-}
-
-.action-done-inline,
-.action-stop-inline {
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
-  border: none;
-}
-
-.action-done-inline {
-  background: rgba(40, 167, 69, 0.9);
+  font-size: 1rem;
   color: white;
+  padding: 0;
 }
 
-.action-done-inline:hover {
-  background: rgba(40, 167, 69, 1);
-}
-
-.action-stop-inline {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.action-stop-inline:hover {
-  background: rgba(255, 255, 255, 0.3);
+.timer-toggle:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
 }
 
 .priority-badge {

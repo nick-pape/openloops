@@ -95,43 +95,17 @@ export function WorkModeView() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleStartPause = () => {
+  const handlePausePlay = () => {
     setIsRunning(!isRunning)
   }
 
-  const handleReset = () => {
-    setIsRunning(false)
-    setTimeRemaining(defaultDuration)
-  }
-
-  const handleAddFive = () => {
-    setTimeRemaining(prev => prev + 5 * 60)
-  }
-
-  const handleDone = async () => {
-    if (!activeTask) return
-
-    try {
-      await window.electron.tasks.update(activeTask.id, { status: 'done' })
-      await window.electron.workMode.clearActiveTask()
-      window.close()
-    } catch (error) {
-      console.error('Failed to mark task as done:', error)
-      alert('Failed to mark task as done')
-    }
-  }
-
-  const handleStop = async () => {
-    try {
-      await window.electron.workMode.clearActiveTask()
-      window.close()
-    } catch (error) {
-      console.error('Failed to stop work mode:', error)
-    }
-  }
-
   const handleClose = async () => {
-    await handleStop()
+    try {
+      await window.electron.workMode.clearActiveTask()
+      window.close()
+    } catch (error) {
+      console.error('Failed to close work mode:', error)
+    }
   }
 
   if (loading) {
@@ -190,14 +164,9 @@ export function WorkModeView() {
           <span className="task-estimate">{activeTask.estimateMinutes} min</span>
           <span className="timer-compact">{formatTime(timeRemaining)}</span>
         </div>
-        <div className="task-actions-inline">
-          <button className="action-done-inline" onClick={handleDone}>
-            ✓ Done
-          </button>
-          <button className="action-stop-inline" onClick={handleStop}>
-            ⏹ Stop
-          </button>
-        </div>
+        <button className="timer-toggle" onClick={handlePausePlay} title={isRunning ? 'Pause timer' : 'Resume timer'}>
+          {isRunning ? '⏸' : '▶'}
+        </button>
       </div>
 
       {/* Quick Captures - MAIN FEATURE */}
