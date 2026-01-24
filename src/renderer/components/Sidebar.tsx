@@ -10,6 +10,7 @@ interface SidebarProps {
   onSelectTasks: () => void
   onSelectPlanner: () => void
   onSelectJobs: () => void
+  onSelectHotkeys: () => void
   onSelectSettings: () => void
   onCreateProject: (name: string) => void
 }
@@ -21,6 +22,7 @@ export function Sidebar({
   onSelectTasks,
   onSelectPlanner,
   onSelectJobs,
+  onSelectHotkeys,
   onSelectSettings,
   onCreateProject
 }: SidebarProps) {
@@ -112,6 +114,12 @@ export function Sidebar({
               {pendingCount > 0 && (
                 <span className="badge">{pendingCount}</span>
               )}
+            </button>
+            <button
+              className={`sidebar-item ${currentView.type === 'hotkeys' ? 'active' : ''}`}
+              onClick={onSelectHotkeys}
+            >
+              Hotkeys
             </button>
             <button
               className={`sidebar-item ${currentView.type === 'settings' ? 'active' : ''}`}

@@ -5,6 +5,7 @@ import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
 import { JobsView } from './views/JobsView'
 import { TasksView } from './views/TasksView'
+import { HotkeysView } from './views/HotkeysView'
 import { WorkModeView } from './views/WorkModeView'
 import { JobsProvider } from './contexts/JobsContext'
 import { Project } from '../types'
@@ -16,6 +17,7 @@ type View =
   | { type: 'tasks' }
   | { type: 'planner' }
   | { type: 'jobs' }
+  | { type: 'hotkeys' }
   | { type: 'settings' }
 
 function App() {
@@ -65,6 +67,7 @@ function App() {
           onSelectTasks={() => setCurrentView({ type: 'tasks' })}
           onSelectPlanner={() => setCurrentView({ type: 'planner' })}
           onSelectJobs={() => setCurrentView({ type: 'jobs' })}
+          onSelectHotkeys={() => setCurrentView({ type: 'hotkeys' })}
           onSelectSettings={() => setCurrentView({ type: 'settings' })}
           onCreateProject={handleCreateProject}
         />
@@ -84,6 +87,7 @@ function App() {
           {currentView.type === 'tasks' && <TasksView />}
           {currentView.type === 'planner' && <PlannerView />}
           {currentView.type === 'jobs' && <JobsView />}
+          {currentView.type === 'hotkeys' && <HotkeysView />}
           {currentView.type === 'settings' && <SettingsView />}
         </main>
       </div>

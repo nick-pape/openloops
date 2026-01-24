@@ -12,6 +12,8 @@ export function WorkModeView() {
   useEffect(() => {
     loadActiveTask()
     loadSettings()
+    // Auto-start timer when Work Mode opens
+    setIsRunning(true)
   }, [])
 
   // Timer countdown
@@ -179,25 +181,36 @@ export function WorkModeView() {
         </button>
       </div>
 
-      {/* Task info */}
+      {/* Task info with inline timer */}
       <div className="work-mode-task-info">
         <div className="task-meta">
           <span className={`priority-badge priority-${activeTask.priority}`}>
             P{activeTask.priority}
           </span>
           <span className="task-estimate">{activeTask.estimateMinutes} min</span>
+          <span className="timer-compact">{formatTime(timeRemaining)}</span>
         </div>
       </div>
 
-      {/* Timer */}
-      <div className="work-mode-timer">
-        <div className="timer-display">{formatTime(timeRemaining)}</div>
-        <div className="timer-controls">
-          <button onClick={handleStartPause}>
-            {isRunning ? '⏸ Pause' : '▶ Start'}
+      {/* Quick Captures - MAIN FEATURE */}
+      <div className="work-mode-captures">
+        <h3>Quick Capture</h3>
+        <div className="capture-buttons">
+          <button className="capture-btn" title="Quick Text (Ctrl+Shift+T)">
+            <span className="capture-icon">📝</span>
+            <span className="capture-label">Text</span>
+            <span className="capture-hint">Ctrl+Shift+T</span>
           </button>
-          <button onClick={handleReset}>↻ Reset</button>
-          <button onClick={handleAddFive}>+5</button>
+          <button className="capture-btn" title="Screenshot (Ctrl+Shift+S)">
+            <span className="capture-icon">📸</span>
+            <span className="capture-label">Screen</span>
+            <span className="capture-hint">Ctrl+Shift+S</span>
+          </button>
+          <button className="capture-btn" title="Voice Note (Ctrl+Shift+R)">
+            <span className="capture-icon">🎤</span>
+            <span className="capture-label">Voice</span>
+            <span className="capture-hint">Ctrl+Shift+R</span>
+          </button>
         </div>
       </div>
 
