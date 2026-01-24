@@ -8,8 +8,8 @@ import { repository } from '../db/repository'
 export class WorkModeWindow {
   private window: BrowserWindow | null = null
   private static WINDOW_STATE_KEY = 'work_mode_window_state'
-  private static DEFAULT_WIDTH = 350
-  private static DEFAULT_HEIGHT = 300
+  private static DEFAULT_WIDTH = 408
+  private static DEFAULT_HEIGHT = 350
 
   /**
    * Check if Work Mode window is open

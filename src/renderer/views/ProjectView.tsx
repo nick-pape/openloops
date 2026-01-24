@@ -541,7 +541,9 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         if (!result) {
           console.log('[Screenshot] Capture cancelled or timed out, trying fallback...')
           // Fall back to desktopCapturer
+          // Don't return - let the fallback show its modal
           await handleScreenshotFallback()
+          // Fallback modal is shown, will handle its own state clearing
           return
         }
 
@@ -677,6 +679,8 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     } catch (error) {
       console.error('[Screenshot] Capture source failed:', error)
       alert(`Failed to capture screenshot: ${error}`)
+    } finally {
+      setIsCapturingScreenshot(false)
     }
   }
 
@@ -920,7 +924,10 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       )}
 
       {showSourcePicker && (
-        <div className="modal-overlay" onClick={() => setShowSourcePicker(false)}>
+        <div className="modal-overlay" onClick={() => {
+          setShowSourcePicker(false)
+          setIsCapturingScreenshot(false)
+        }}>
           <div className="modal source-picker-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Select a screen or window</h2>
             <div className="source-grid">
@@ -936,7 +943,10 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
               ))}
             </div>
             <div className="modal-actions">
-              <button className="secondary" onClick={() => setShowSourcePicker(false)}>
+              <button className="secondary" onClick={() => {
+                setShowSourcePicker(false)
+                setIsCapturingScreenshot(false)
+              }}>
                 Cancel
               </button>
             </div>

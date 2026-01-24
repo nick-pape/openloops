@@ -181,7 +181,7 @@ export function WorkModeView() {
         </button>
       </div>
 
-      {/* Task info with inline timer */}
+      {/* Task info with inline timer and actions */}
       <div className="work-mode-task-info">
         <div className="task-meta">
           <span className={`priority-badge priority-${activeTask.priority}`}>
@@ -190,11 +190,18 @@ export function WorkModeView() {
           <span className="task-estimate">{activeTask.estimateMinutes} min</span>
           <span className="timer-compact">{formatTime(timeRemaining)}</span>
         </div>
+        <div className="task-actions-inline">
+          <button className="action-done-inline" onClick={handleDone}>
+            ✓ Done
+          </button>
+          <button className="action-stop-inline" onClick={handleStop}>
+            ⏹ Stop
+          </button>
+        </div>
       </div>
 
       {/* Quick Captures - MAIN FEATURE */}
       <div className="work-mode-captures">
-        <h3>Quick Capture</h3>
         <div className="capture-buttons">
           <button className="capture-btn" title="Quick Text (Ctrl+Shift+T)">
             <span className="capture-icon">📝</span>
@@ -212,16 +219,6 @@ export function WorkModeView() {
             <span className="capture-hint">Ctrl+Shift+R</span>
           </button>
         </div>
-      </div>
-
-      {/* Actions */}
-      <div className="work-mode-actions">
-        <button className="action-done" onClick={handleDone}>
-          ✓ Done
-        </button>
-        <button className="action-stop" onClick={handleStop}>
-          ⏹ Stop
-        </button>
       </div>
     </div>
   )
