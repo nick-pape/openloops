@@ -29,15 +29,19 @@ export class WorkModeWindow {
 
     const state = await this.loadWindowState()
 
+    // Use saved dimensions but ensure minimum height
+    const width = state.width || WorkModeWindow.DEFAULT_WIDTH
+    const height = Math.max(state.height || WorkModeWindow.DEFAULT_HEIGHT, WorkModeWindow.DEFAULT_HEIGHT)
+
     this.window = new BrowserWindow({
-      width: state.width || WorkModeWindow.DEFAULT_WIDTH,
-      height: state.height || WorkModeWindow.DEFAULT_HEIGHT,
+      width: width,
+      height: height,
       x: state.x,
       y: state.y,
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: false,
+      resizable: true,  // Allow resizing so user can adjust
       minimizable: false,
       maximizable: false,
       webPreferences: {
