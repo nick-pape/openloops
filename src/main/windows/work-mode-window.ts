@@ -29,13 +29,10 @@ export class WorkModeWindow {
 
     const state = await this.loadWindowState()
 
-    // Use saved dimensions but ensure minimum height
-    const width = state.width || WorkModeWindow.DEFAULT_WIDTH
-    const height = Math.max(state.height || WorkModeWindow.DEFAULT_HEIGHT, WorkModeWindow.DEFAULT_HEIGHT)
-
+    // Always use default dimensions, only restore position
     this.window = new BrowserWindow({
-      width: width,
-      height: height,
+      width: WorkModeWindow.DEFAULT_WIDTH,
+      height: WorkModeWindow.DEFAULT_HEIGHT,
       x: state.x,
       y: state.y,
       frame: false,
