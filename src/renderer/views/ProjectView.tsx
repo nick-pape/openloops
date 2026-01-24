@@ -445,8 +445,16 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   const handleStartWorkMode = async (task: Task) => {
     try {
+      console.log('[ProjectView] Setting active task:', task.id, task.title)
       await window.electron.workMode.setActiveTask(task.id)
+      console.log('[ProjectView] Active task set, waiting for DB flush...')
+
+      // Small delay to ensure database write is flushed
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      console.log('[ProjectView] Opening window')
       await window.electron.workMode.openWindow()
+      console.log('[ProjectView] Window opened')
     } catch (error) {
       console.error('Failed to start work mode:', error)
       alert('Failed to start work mode')

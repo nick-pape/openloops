@@ -120,7 +120,12 @@ export function TasksView() {
     try {
       console.log('[TasksView] Setting active task:', task.id, task.title)
       await window.electron.workMode.setActiveTask(task.id)
-      console.log('[TasksView] Active task set, opening window')
+      console.log('[TasksView] Active task set, waiting for DB flush...')
+
+      // Small delay to ensure database write is flushed
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      console.log('[TasksView] Opening window')
       await window.electron.workMode.openWindow()
       console.log('[TasksView] Window opened')
     } catch (error) {

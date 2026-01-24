@@ -51,10 +51,11 @@ export class WorkModeWindow {
     const isDev = process.env.NODE_ENV === 'development'
 
     if (isDev) {
-      this.window.loadURL('http://localhost:5173/#/work-mode')
-      // Don't open DevTools for work mode window - it's too small
+      await this.window.loadURL('http://localhost:5173/#/work-mode')
+      // Open DevTools for debugging
+      this.window.webContents.openDevTools({ mode: 'detach' })
     } else {
-      this.window.loadFile(path.join(__dirname, '../../dist/index.html'), {
+      await this.window.loadFile(path.join(__dirname, '../../dist/index.html'), {
         hash: '/work-mode'
       })
     }
