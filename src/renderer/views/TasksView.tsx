@@ -351,7 +351,7 @@ interface TaskCardProps {
   onStartWorkMode: (task: Task) => void
 }
 
-function TaskCard({ task, projectName, onToggle, onEdit, onDelete, onStartWorkMode }: TaskCardProps) {
+function TaskCard({ task, onToggle, onEdit, onDelete, onStartWorkMode }: TaskCardProps) {
   return (
     <div className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
       <div className="task-card-header">

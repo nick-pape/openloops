@@ -221,6 +221,16 @@ declare global {
       offTaskUpdated: (projectId: string | null, callback: any) => void
       onTaskDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => void
       offTaskDeleted: (projectId: string | null, callback: any) => void
+      onDomainEvent: (callback: (event: any) => void) => void
+      offDomainEvent: (callback: any) => void
+      mcp: {
+        callTool: (toolName: string, args: any) => Promise<{ content: Array<{ type: string; text: string }> }>
+        http: {
+          start: () => Promise<{ success: boolean }>
+          stop: () => Promise<{ success: boolean }>
+          status: () => Promise<{ running: boolean; port: number }>
+        }
+      }
     }
   }
 }

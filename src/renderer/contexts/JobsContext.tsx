@@ -53,10 +53,10 @@ export function JobsProvider({ children }: { children: ReactNode }) {
       })
     }
 
-    window.electron.onJobUpdated(handleJobUpdated)
+    window.electron.onJobUpdated?.(handleJobUpdated)
 
     return () => {
-      window.electron.offJobUpdated(handleJobUpdated)
+      window.electron.offJobUpdated?.(handleJobUpdated)
     }
   }, [])
 

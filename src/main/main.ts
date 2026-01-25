@@ -13,10 +13,11 @@ import { screenshotHandler } from './screenshot/screenshot-handler'
 import { AppEvents, broadcastEvent } from './events'
 import { ProviderFactory } from './ai/providers'
 import { domainEvents } from './events/emitter'
-import { projectCommands, captureCommands, taskCommands, summaryCommands } from './domain/commands'
+import { projectCommands, captureCommands } from './domain/commands'
 import { allTools } from './mcp/tools/index'
 import { createMCPServer } from './mcp/server'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { startHTTPTransport, stopHTTPTransport, isHTTPTransportRunning } from './mcp/http-transport'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -113,12 +114,29 @@ app.whenReady().then(async () => {
   initDatabase()
   await jobManager.start()
 
-  // Start MCP server (Phase 3)
+  // Start MCP stdio server (Phase 3)
   console.log('[MCP] Starting MCP stdio server...')
   const mcpServer = createMCPServer()
   const transport = new StdioServerTransport()
   await mcpServer.connect(transport)
-  console.log('[MCP] MCP server started - ready for tool calls')
+  console.log('[MCP] MCP stdio server started - ready for tool calls')
+
+  // Start MCP HTTP transport if enabled (Phase 4)
+  try {
+    const httpEnabled = await repository.getSetting('mcp.http.enabled')
+    const httpPort = await repository.getSetting('mcp.http.port')
+    const httpAuthToken = await repository.getSetting('mcp.http.authToken')
+
+    if (httpEnabled === 'true') {
+      await startHTTPTransport({
+        enabled: true,
+        port: httpPort ? parseInt(httpPort) : 3000,
+        authToken: httpAuthToken || undefined
+      })
+    }
+  } catch (error) {
+    console.error('[MCP HTTP] Failed to start HTTP transport:', error)
+  }
 
   setupIPC()
   createMenu()
@@ -992,7 +1010,10 @@ Keep it concise and actionable.`
       'working_hours_start',
       'working_hours_end',
       'min_block_size_minutes',
-      'summary_lookback_days'
+      'summary_lookback_days',
+      'mcp.http.enabled',
+      'mcp.http.port',
+      'mcp.http.authToken'
     ]
 
     const settings: Record<string, string> = {}
@@ -1010,6 +1031,49 @@ Keep it concise and actionable.`
 
   ipcMain.handle('secrets:set', async (_, key: string, value: string) => {
     await repository.setSetting(`secret_${key}`, value)
+  })
+
+  // MCP HTTP Transport (Phase 4)
+  ipcMain.handle('mcp:http:start', async () => {
+    try {
+      const httpEnabled = await repository.getSetting('mcp.http.enabled')
+      const httpPort = await repository.getSetting('mcp.http.port')
+      const httpAuthToken = await repository.getSetting('mcp.http.authToken')
+
+      if (httpEnabled !== 'true') {
+        throw new Error('MCP HTTP transport is disabled in settings')
+      }
+
+      await startHTTPTransport({
+        enabled: true,
+        port: httpPort ? parseInt(httpPort) : 3000,
+        authToken: httpAuthToken || undefined
+      })
+
+      return { success: true }
+    } catch (error: any) {
+      console.error('[MCP HTTP] Failed to start:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('mcp:http:stop', async () => {
+    try {
+      await stopHTTPTransport()
+      return { success: true }
+    } catch (error: any) {
+      console.error('[MCP HTTP] Failed to stop:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('mcp:http:status', async () => {
+    const running = isHTTPTransportRunning()
+    const port = await repository.getSetting('mcp.http.port')
+    return {
+      running,
+      port: port ? parseInt(port) : 3000
+    }
   })
 
   // LLM Connection Testing
@@ -1073,7 +1137,7 @@ Keep it concise and actionable.`
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const data = await response.json()
+      await response.json()
       console.log('[Transcription Test] Response received')
 
       return { success: true, message: 'Connection successful' }

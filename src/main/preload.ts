@@ -217,9 +217,14 @@ const api = {
     ipcRenderer.removeListener('domain-event', callback)
   },
 
-  // MCP (Phase 2 - testing)
+  // MCP (Phase 2 - testing, Phase 4 - HTTP transport)
   mcp: {
-    callTool: (toolName: string, args: any) => ipcRenderer.invoke('mcp:callTool', toolName, args)
+    callTool: (toolName: string, args: any) => ipcRenderer.invoke('mcp:callTool', toolName, args),
+    http: {
+      start: () => ipcRenderer.invoke('mcp:http:start'),
+      stop: () => ipcRenderer.invoke('mcp:http:stop'),
+      status: () => ipcRenderer.invoke('mcp:http:status')
+    }
   }
 }
 

@@ -7,7 +7,6 @@ export function WorkModeView() {
   const [loading, setLoading] = useState(true)
   const [timeRemaining, setTimeRemaining] = useState(25 * 60) // 25 minutes in seconds
   const [isRunning, setIsRunning] = useState(false)
-  const [defaultDuration, setDefaultDuration] = useState(25 * 60)
   const [isCapturingScreenshot, setIsCapturingScreenshot] = useState(false)
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [desktopSources, setDesktopSources] = useState<any[]>([])
@@ -66,7 +65,6 @@ export function WorkModeView() {
       const duration = await window.electron.settings.get('focus_session_length')
       if (duration) {
         const minutes = parseInt(duration)
-        setDefaultDuration(minutes * 60)
         setTimeRemaining(minutes * 60)
       }
     } catch (error) {

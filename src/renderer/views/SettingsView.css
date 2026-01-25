@@ -91,3 +91,43 @@ button.small {
   color: #666;
   font-size: 0.813rem;
 }
+
+.section-description {
+  color: #666;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.mcp-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.mcp-status .status-running,
+.mcp-status .status-stopped {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.mcp-status .status-running span {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.mcp-status .status-stopped span {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.mcp-status button {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}

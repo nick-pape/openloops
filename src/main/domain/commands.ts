@@ -178,13 +178,13 @@ export class TaskCommands {
 
 export class SummaryCommands {
   async createSummary(projectId: string, summaryMd: string, provider: string, windowStart: Date, windowEnd: Date) {
-    const summary = await repository.createProjectSummary(projectId, summaryMd, provider, windowStart, windowEnd)
+    const summaryId = await repository.createProjectSummary(projectId, summaryMd, provider, windowStart, windowEnd)
     domainEvents.emitDomainEvent({
       type: 'summary.generated',
       projectId,
-      summaryId: summary.id
+      summaryId
     })
-    return summary
+    return summaryId
   }
 
   // Read operations - no events

@@ -13,9 +13,12 @@ export function SettingsView() {
   const [transcriptionTestResult, setTranscriptionTestResult] = useState<string>('')
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [showModelDropdown, setShowModelDropdown] = useState(false)
+  const [mcpHttpStatus, setMcpHttpStatus] = useState<{ running: boolean; port: number } | null>(null)
+  const [mcpHttpLoading, setMcpHttpLoading] = useState(false)
 
   useEffect(() => {
     loadSettings()
+    loadMCPHttpStatus()
   }, [])
 
   const loadSettings = async () => {
@@ -126,6 +129,39 @@ export function SettingsView() {
     }
 
     setTestingTranscription(false)
+  }
+
+  const loadMCPHttpStatus = async () => {
+    try {
+      const status = await window.electron.mcp.http.status()
+      setMcpHttpStatus(status)
+    } catch (error) {
+      console.error('Failed to load MCP HTTP status:', error)
+    }
+  }
+
+  const handleMCPHttpStart = async () => {
+    setMcpHttpLoading(true)
+    try {
+      await window.electron.mcp.http.start()
+      await loadMCPHttpStatus()
+      setMessage('MCP HTTP transport started successfully')
+    } catch (error: any) {
+      setMessage(`Failed to start MCP HTTP transport: ${error.message}`)
+    }
+    setMcpHttpLoading(false)
+  }
+
+  const handleMCPHttpStop = async () => {
+    setMcpHttpLoading(true)
+    try {
+      await window.electron.mcp.http.stop()
+      await loadMCPHttpStatus()
+      setMessage('MCP HTTP transport stopped successfully')
+    } catch (error: any) {
+      setMessage(`Failed to stop MCP HTTP transport: ${error.message}`)
+    }
+    setMcpHttpLoading(false)
   }
 
   if (loading) {
@@ -356,6 +392,82 @@ export function SettingsView() {
             max={90}
           />
         </div>
+      </div>
+
+      <div className="settings-section">
+        <h2>MCP HTTP Transport (External Agents)</h2>
+        <p className="section-description">
+          Enable HTTP transport to allow external agents (Claude Desktop, Goose) to connect to Open Loops.
+        </p>
+
+        <div className="form-group">
+          <label>Enable HTTP Transport</label>
+          <select
+            value={settings['mcp.http.enabled'] || 'false'}
+            onChange={(e) => handleSettingChange('mcp.http.enabled', e.target.value)}
+          >
+            <option value="false">Disabled</option>
+            <option value="true">Enabled</option>
+          </select>
+        </div>
+
+        {settings['mcp.http.enabled'] === 'true' && (
+          <>
+            <div className="form-group">
+              <label>Port</label>
+              <input
+                type="number"
+                value={settings['mcp.http.port'] || '3000'}
+                onChange={(e) => handleSettingChange('mcp.http.port', e.target.value)}
+                min={1024}
+                max={65535}
+              />
+              <small>Port for HTTP server (default: 3000)</small>
+            </div>
+
+            <div className="form-group">
+              <label>Auth Token (optional)</label>
+              <input
+                type="password"
+                value={settings['mcp.http.authToken'] || ''}
+                onChange={(e) => handleSettingChange('mcp.http.authToken', e.target.value)}
+                placeholder="Leave empty for no authentication"
+              />
+              <small>Token for Bearer authentication (recommended for security)</small>
+            </div>
+
+            <div className="form-group">
+              <label>Status</label>
+              <div className="mcp-status">
+                {mcpHttpStatus ? (
+                  <div className={mcpHttpStatus.running ? 'status-running' : 'status-stopped'}>
+                    {mcpHttpStatus.running ? (
+                      <>
+                        <span>✅ Running on port {mcpHttpStatus.port}</span>
+                        <button onClick={handleMCPHttpStop} disabled={mcpHttpLoading}>
+                          {mcpHttpLoading ? 'Stopping...' : 'Stop'}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span>⭕ Stopped</span>
+                        <button onClick={handleMCPHttpStart} disabled={mcpHttpLoading}>
+                          {mcpHttpLoading ? 'Starting...' : 'Start'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <span>Loading status...</span>
+                )}
+              </div>
+              <small>
+                Save settings first, then start the HTTP transport.
+                Connection URL: http://localhost:{settings['mcp.http.port'] || '3000'}/mcp
+              </small>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="settings-actions">

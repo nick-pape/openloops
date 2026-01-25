@@ -26,7 +26,7 @@ export function JobsView() {
     return new Date(date).toLocaleString()
   }
 
-  const formatDuration = (metadata: string | null) => {
+  const formatDuration = (metadata: string | null | undefined) => {
     if (!metadata) return null
     try {
       const meta = JSON.parse(metadata)
@@ -39,7 +39,7 @@ export function JobsView() {
     return null
   }
 
-  const parseMetadata = (metadata: string | null) => {
+  const parseMetadata = (metadata: string | null | undefined) => {
     if (!metadata) return null
     try {
       return JSON.parse(metadata)

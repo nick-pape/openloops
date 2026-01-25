@@ -478,7 +478,6 @@ export class Repository {
   }
 
   async getJobsByProject(projectId: string) {
-    const db = getDatabase()
     // Parse payload to filter by projectId or captureId
     const allJobs = await this.getAllJobs()
     return allJobs.filter(job => {

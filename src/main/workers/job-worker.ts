@@ -293,18 +293,18 @@ async function handleTextTitleGeneration(
   return result.text
 }
 
-function getMimeType(ext: string): string {
-  const mimeTypes: Record<string, string> = {
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
-    'bmp': 'image/bmp',
-    'svg': 'image/svg+xml'
-  }
-  return mimeTypes[ext] || 'image/png'
-}
+// function getMimeType(ext: string): string {
+//   const mimeTypes: Record<string, string> = {
+//     'png': 'image/png',
+//     'jpg': 'image/jpeg',
+//     'jpeg': 'image/jpeg',
+//     'gif': 'image/gif',
+//     'webp': 'image/webp',
+//     'bmp': 'image/bmp',
+//     'svg': 'image/svg+xml'
+//   }
+//   return mimeTypes[ext] || 'image/png'
+// }
 
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {

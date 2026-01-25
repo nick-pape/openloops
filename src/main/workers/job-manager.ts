@@ -156,15 +156,23 @@ export class JobManager {
             console.log('[JobManager] Emitted job:updated event for job:', message.jobId)
 
             // Emit domain event for summary completion (Phase 3)
-            if (message.success && updatedJob.type === 'summary' && updatedJob.entityId) {
-              const { domainEvents } = await import('../events/emitter')
-              const summary = await repository.getLatestProjectSummary(updatedJob.entityId)
-              if (summary) {
-                domainEvents.emitDomainEvent({
-                  type: 'summary.generated',
-                  projectId: updatedJob.entityId,
-                  summaryId: summary.id
-                })
+            if (message.success && updatedJob.type === 'summary') {
+              try {
+                const payload = JSON.parse(updatedJob.payload)
+                const projectId = payload.projectId
+                if (projectId) {
+                  const { domainEvents } = await import('../events/emitter')
+                  const summary = await repository.getLatestProjectSummary(projectId)
+                  if (summary) {
+                    domainEvents.emitDomainEvent({
+                      type: 'summary.generated',
+                      projectId: projectId,
+                      summaryId: summary.id
+                    })
+                  }
+                }
+              } catch (error) {
+                console.error('[JobManager] Failed to emit summary domain event:', error)
               }
             }
           }
