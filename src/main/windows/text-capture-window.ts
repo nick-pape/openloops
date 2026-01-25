@@ -6,6 +6,7 @@ import path from 'path'
  */
 export class TextCaptureWindow {
   private window: BrowserWindow | null = null
+  private currentProjectId: string | null = null
   private static DEFAULT_WIDTH = 500
   private static DEFAULT_HEIGHT = 400
 
@@ -17,9 +18,17 @@ export class TextCaptureWindow {
   }
 
   /**
+   * Get the current project ID (if set)
+   */
+  getProjectId(): string | null {
+    return this.currentProjectId
+  }
+
+  /**
    * Create and show the text capture window
    */
-  async create() {
+  async create(projectId?: string) {
+    this.currentProjectId = projectId || null
     if (this.isOpen()) {
       this.window!.focus()
       return
@@ -75,6 +84,7 @@ export class TextCaptureWindow {
       this.window!.close()
       this.window = null
     }
+    this.currentProjectId = null
   }
 
   /**

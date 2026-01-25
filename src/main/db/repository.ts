@@ -10,8 +10,8 @@ export interface CreateProjectInput {
 export interface CreateCaptureInput {
   projectId?: string        // Set if project-level capture
   linkedTaskId?: string     // Set if task-level capture
-  type: 'text' | 'image' | 'audio'
-  title: string
+  type: 'text' | 'image' | 'audio' | 'chat' | 'decision'
+  title?: string | null     // Optional - AI can generate
   bodyText?: string
   filePath?: string
   metadata?: string

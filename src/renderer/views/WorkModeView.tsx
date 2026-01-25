@@ -398,10 +398,10 @@ export function WorkModeView() {
             <span className="capture-label">{isCapturingScreenshot ? 'Capturing...' : 'Screen'}</span>
             <span className="capture-hint">Ctrl+Shift+S</span>
           </button>
-          <button className="capture-btn" onClick={isRecording ? handleStopRecording : handleStartRecording} title="Voice Note (Ctrl+Shift+R)">
+          <button className="capture-btn" onClick={isRecording ? handleStopRecording : handleStartRecording} title="Voice Note (Ctrl+Shift+V)">
             <span className="capture-icon">{isRecording ? '⏹' : '🎤'}</span>
             <span className="capture-label">{isRecording ? 'Recording...' : 'Voice'}</span>
-            <span className="capture-hint">Ctrl+Shift+R</span>
+            <span className="capture-hint">Ctrl+Shift+V</span>
           </button>
         </div>
       </div>

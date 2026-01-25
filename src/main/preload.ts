@@ -77,9 +77,18 @@ const api = {
 
   // Text Capture
   textCapture: {
-    openWindow: () => ipcRenderer.invoke('textCapture:openWindow'),
+    openWindow: (projectId?: string) => ipcRenderer.invoke('textCapture:openWindow', projectId),
     closeWindow: () => ipcRenderer.invoke('textCapture:closeWindow'),
     save: (text: string) => ipcRenderer.invoke('textCapture:save', text)
+  },
+
+  // Chat
+  chat: {
+    send: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:send', projectId, messages),
+    save: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:save', projectId, messages),
+    extractTasks: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractTasks', projectId, messages),
+    extractDecisions: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractDecisions', projectId, messages),
+    updateSummary: (projectId: string) => ipcRenderer.invoke('chat:updateSummary', projectId)
   },
 
   // Calendar

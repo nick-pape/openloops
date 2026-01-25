@@ -13,7 +13,7 @@ export function HotkeysView() {
       shortcuts: [
         { keys: 'Ctrl+Shift+T', description: 'Quick text capture (Work Mode only)' },
         { keys: 'Ctrl+Shift+S', description: 'Screenshot capture' },
-        { keys: 'Ctrl+Shift+R', description: 'Voice recording (Work Mode only)' }
+        { keys: 'Ctrl+Shift+V', description: 'Voice recording (Work Mode only)' }
       ]
     },
     {

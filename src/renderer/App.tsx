@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
+import { ChatPane } from './components/ChatPane'
 import { ProjectView } from './views/ProjectView'
 import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
@@ -24,6 +25,7 @@ type View =
 function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentView, setCurrentView] = useState<View>({ type: 'welcome' })
+  const [chatCollapsed, setChatCollapsed] = useState(false)
 
   // Check if this is the Work Mode window
   const isWorkModeWindow = window.location.hash === '#/work-mode'
@@ -64,9 +66,12 @@ function App() {
     return <TextCaptureView />
   }
 
+  // Get current project ID for chat context
+  const currentProjectId = currentView.type === 'project' ? currentView.projectId : null
+
   return (
     <JobsProvider>
-      <div className="app">
+      <div className={`app ${chatCollapsed ? 'chat-collapsed' : ''}`}>
         <Sidebar
           projects={projects}
           currentView={currentView}
@@ -97,6 +102,13 @@ function App() {
           {currentView.type === 'hotkeys' && <HotkeysView />}
           {currentView.type === 'settings' && <SettingsView />}
         </main>
+        {currentProjectId && (
+          <ChatPane
+            projectId={currentProjectId}
+            isCollapsed={chatCollapsed}
+            onToggle={() => setChatCollapsed(!chatCollapsed)}
+          />
+        )}
       </div>
     </JobsProvider>
   )

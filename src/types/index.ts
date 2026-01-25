@@ -9,7 +9,7 @@ export interface Capture {
   id: string
   projectId?: string        // Optional - set if project-level capture
   linkedTaskId?: string     // Optional - set if task-level capture
-  type: 'text' | 'image' | 'audio'
+  type: 'text' | 'image' | 'audio' | 'chat' | 'decision'
   title: string
   bodyText?: string
   filePath?: string
@@ -17,6 +17,12 @@ export interface Capture {
   createdAt: Date
   isOpenLoop?: boolean
   // CONSTRAINT: Exactly one of projectId or linkedTaskId must be set
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp?: string  // Optional for system messages
 }
 
 export interface CaptureMetadata {
@@ -158,6 +164,18 @@ declare global {
         closeWindow: () => Promise<void>
         toggleWindow: () => Promise<void>
       }
+      textCapture: {
+        openWindow: (projectId?: string) => Promise<void>
+        closeWindow: () => Promise<void>
+        save: (text: string) => Promise<Capture>
+      }
+      chat: {
+        send: (projectId: string, messages: ChatMessage[]) => Promise<ChatMessage>
+        save: (projectId: string, messages: ChatMessage[]) => Promise<Capture>
+        extractTasks: (projectId: string, messages: ChatMessage[]) => Promise<string>
+        extractDecisions: (projectId: string, messages: ChatMessage[]) => Promise<string>
+        updateSummary: (projectId: string) => Promise<void>
+      }
       calendar: {
         importICS: () => Promise<string | null>
         parseICS: (icsContent: string) => Promise<any[]>
@@ -191,6 +209,18 @@ declare global {
       offTriggerScreenshot?: (callback: () => void) => void
       onJobUpdated?: (callback: (job: any) => void) => void
       offJobUpdated?: (callback: (job: any) => void) => void
+      onCaptureCreated: (projectId: string | null, callback: (capture: Capture) => void) => void
+      offCaptureCreated: (projectId: string | null, callback: any) => void
+      onCaptureUpdated: (projectId: string | null, callback: (capture: Capture) => void) => void
+      offCaptureUpdated: (projectId: string | null, callback: any) => void
+      onCaptureDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => void
+      offCaptureDeleted: (projectId: string | null, callback: any) => void
+      onTaskCreated: (projectId: string | null, callback: (task: Task) => void) => void
+      offTaskCreated: (projectId: string | null, callback: any) => void
+      onTaskUpdated: (projectId: string | null, callback: (task: Task) => void) => void
+      offTaskUpdated: (projectId: string | null, callback: any) => void
+      onTaskDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => void
+      offTaskDeleted: (projectId: string | null, callback: any) => void
     }
   }
 }

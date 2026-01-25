@@ -20,6 +20,12 @@ export interface TranscriptionProvider {
   transcribe(audioFilePath: string): Promise<string>
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp?: string  // Optional for system messages
+}
+
 export interface LLMProvider {
   name: string
   model: string
@@ -27,6 +33,7 @@ export interface LLMProvider {
   generateSummary(prompt: string, context: string): Promise<LLMResult>
   generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult>
   generateTextTitle(bodyText: string, previousTitle?: string): Promise<LLMResult>
+  chat(messages: ChatMessage[]): Promise<LLMResult>
 }
 
 // Remote Transcription Provider (OpenAI Whisper API)
@@ -278,6 +285,54 @@ export class RemoteLLMProvider implements LLMProvider {
       }
     }
   }
+
+  async chat(messages: ChatMessage[]): Promise<LLMResult> {
+    const startTime = Date.now()
+
+    // Convert ChatMessage[] to OpenAI API format (no timestamp field)
+    const apiMessages = messages.map(m => ({
+      role: m.role,
+      content: m.content
+    }))
+
+    const requestParams = {
+      model: this.model,
+      messages: apiMessages,
+      temperature: 0.7,
+      max_tokens: 2000
+    }
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestParams)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Chat request failed: ${response.statusText} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    const durationMs = Date.now() - startTime
+
+    return {
+      text: data.choices[0].message.content,
+      metadata: {
+        baseUrl: this.baseUrl,
+        model: this.model,
+        requestParams: {
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        tokensUsed: data.usage?.total_tokens,
+        durationMs
+      }
+    }
+  }
 }
 
 // Disabled LLM Provider (local fallback)
@@ -328,6 +383,17 @@ ${lines.slice(0, 10).join('\n')}
     // No-op: return empty string, title stays null
     return {
       text: '',
+      metadata: {
+        model: 'none',
+        durationMs: 0
+      }
+    }
+  }
+
+  async chat(_messages: ChatMessage[]): Promise<LLMResult> {
+    // Return error message
+    return {
+      text: 'Chat is not available. Please configure an LLM provider in Settings.',
       metadata: {
         model: 'none',
         durationMs: 0

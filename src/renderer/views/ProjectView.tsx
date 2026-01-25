@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import { Project, Capture, ProjectSummary, Transcription, DesktopSource, Task } from '../../types'
+import { Project, Capture, ProjectSummary, Transcription, DesktopSource, Task, ChatMessage as ChatMessageType } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
+import { ChatMessage } from '../components/ChatMessage'
+import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import './ProjectView.css'
 import './TasksView.css'
 
@@ -757,7 +758,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
             </div>
             {summary ? (
               <div className="summary-content">
-                <ReactMarkdown>{summary.summaryMd}</ReactMarkdown>
+                <MarkdownRenderer content={summary.summaryMd} className="md-summary" />
               </div>
             ) : (
               <div className="summary-empty">
@@ -778,6 +779,8 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                   <option value="text">Text</option>
                   <option value="image">Image</option>
                   <option value="audio">Audio</option>
+                  <option value="chat">Chat</option>
+                  <option value="decision">Decision</option>
                 </select>
               </div>
               <div className="capture-actions">
@@ -785,7 +788,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                   {isCapturingScreenshot ? '⏳ Capturing...' : '📸 Screenshot'}
                 </button>
                 <button onClick={handleUploadImage}>🖼️ Image</button>
-                <button onClick={() => window.electron.textCapture.openWindow()}>+ Text</button>
+                <button onClick={() => window.electron.textCapture.openWindow(projectId)}>+ Text</button>
                 <button onClick={isRecording ? handleStopRecording : handleStartRecording}>
                   {isRecording ? '⏹ Stop' : '🎤 Record'}
                 </button>
@@ -1070,9 +1073,24 @@ function CaptureAccordion({
 
       {isExpanded && (
         <div className="accordion-content">
-          {capture.bodyText && (
+          {capture.type === 'chat' && capture.bodyText && (() => {
+            try {
+              const messages: ChatMessageType[] = JSON.parse(capture.bodyText)
+              return (
+                <div className="chat-messages-replay">
+                  {messages.map((msg, index) => (
+                    <ChatMessage key={index} message={msg} />
+                  ))}
+                </div>
+              )
+            } catch (error) {
+              console.error('Failed to parse chat messages:', error)
+              return <div className="capture-body">Error loading chat transcript</div>
+            }
+          })()}
+          {capture.type !== 'chat' && capture.bodyText && (
             <div className="capture-body">
-              <ReactMarkdown>{capture.bodyText}</ReactMarkdown>
+              <MarkdownRenderer content={capture.bodyText} className="md-capture" />
             </div>
           )}
           {imageData && <img src={imageData} alt={capture.title} className="capture-image" />}

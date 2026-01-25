@@ -1,14 +1,19 @@
 .project-view {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .project-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  padding: 2rem 2rem 0 2rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .project-header h1 {
@@ -17,10 +22,14 @@
 }
 
 .tabs {
+  flex-shrink: 0;
   display: flex;
   gap: 0.5rem;
   border-bottom: 2px solid #ddd;
-  margin-bottom: 2rem;
+  padding: 0 2rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 2rem auto 0 auto;
 }
 
 .tab {
@@ -47,6 +56,9 @@
 }
 
 .tab-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
   animation: fadeIn 0.2s;
 }
 
@@ -63,7 +75,9 @@
   background: #f8f9fa;
   border-radius: 8px;
   padding: 1.5rem;
-  margin-bottom: 2rem;
+  margin: 2rem;
+  max-width: 1200px;
+  margin: 2rem auto;
 }
 
 .summary-header {
@@ -78,70 +92,9 @@
   color: #333;
 }
 
+/* Summary content container - markdown styles now in MarkdownRenderer.css */
 .summary-content {
-  color: #555;
-  line-height: 1.6;
-}
-
-/* Markdown styling for summary */
-.summary-content h1 {
-  font-size: 1.5rem;
-  margin: 1rem 0 0.5rem 0;
-  color: #333;
-}
-
-.summary-content h2 {
-  font-size: 1.25rem;
-  margin: 1rem 0 0.5rem 0;
-  color: #333;
-}
-
-.summary-content h3 {
-  font-size: 1.1rem;
-  margin: 0.75rem 0 0.5rem 0;
-  color: #333;
-}
-
-.summary-content ul,
-.summary-content ol {
-  margin: 0.5rem 0;
-  padding-left: 1.5rem;
-}
-
-.summary-content li {
-  margin: 0.25rem 0;
-}
-
-.summary-content p {
-  margin: 0.5rem 0;
-}
-
-.summary-content code {
-  background: #f0f0f0;
-  padding: 0.125rem 0.25rem;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-.summary-content pre {
-  background: #f0f0f0;
-  padding: 1rem;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 0.5rem 0;
-}
-
-.summary-content pre code {
-  background: none;
-  padding: 0;
-}
-
-.summary-content blockquote {
-  border-left: 3px solid #ddd;
-  padding-left: 1rem;
-  margin: 0.5rem 0;
-  color: #666;
+  /* Container styles only */
 }
 
 .summary-empty {
@@ -149,8 +102,11 @@
   font-style: italic;
 }
 
-.captures-section {
-  margin-top: 0;
+.captures-section,
+.tasks-section {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .captures-header {
@@ -302,71 +258,9 @@
   opacity: 1;
 }
 
+/* Capture body container - markdown styles now in MarkdownRenderer.css */
 .capture-body {
-  color: #666;
-  font-size: 0.875rem;
-  line-height: 1.6;
-}
-
-/* Markdown styling for capture body */
-.capture-body h1 {
-  font-size: 1.2rem;
-  margin: 0.75rem 0 0.5rem 0;
-  color: #333;
-}
-
-.capture-body h2 {
-  font-size: 1.1rem;
-  margin: 0.75rem 0 0.5rem 0;
-  color: #333;
-}
-
-.capture-body h3 {
-  font-size: 1rem;
-  margin: 0.5rem 0 0.25rem 0;
-  color: #333;
-}
-
-.capture-body ul,
-.capture-body ol {
-  margin: 0.5rem 0;
-  padding-left: 1.5rem;
-}
-
-.capture-body li {
-  margin: 0.25rem 0;
-}
-
-.capture-body p {
-  margin: 0.5rem 0;
-}
-
-.capture-body code {
-  background: #f0f0f0;
-  padding: 0.125rem 0.25rem;
-  border-radius: 3px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
-.capture-body pre {
-  background: #f0f0f0;
-  padding: 0.75rem;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 0.5rem 0;
-}
-
-.capture-body pre code {
-  background: none;
-  padding: 0;
-}
-
-.capture-body blockquote {
-  border-left: 3px solid #ddd;
-  padding-left: 0.75rem;
-  margin: 0.5rem 0;
-  color: #666;
+  /* Container styles only */
 }
 
 .capture-image {
@@ -470,4 +364,61 @@
   font-size: 0.95rem;
   font-weight: 500;
 }
+
+/* Chat capture type badge */
+.capture-type-chat {
+  background: #EDE9FE;
+  color: #7C3AED;
+}
+
+.capture-type-decision {
+  background: #FEF3C7;
+  color: #D97706;
+}
+
+/* Chat messages replay (for saved chat captures) */
+.chat-messages-replay {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+.chat-messages-replay .chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e1e4e8;
+}
+
+.chat-messages-replay .chat-message.user {
+  background: #EDE9FE;
+  border-color: #C4B5FD;
+}
+
+.chat-messages-replay .chat-message.assistant {
+  background: white;
+}
+
+.chat-messages-replay .message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.chat-messages-replay .message-role {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.chat-messages-replay .message-timestamp {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+/* Chat messages replay - markdown styles now in MarkdownRenderer.css */
 

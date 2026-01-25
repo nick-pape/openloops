@@ -11,6 +11,7 @@ import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
 import { screenshotHandler } from './screenshot/screenshot-handler'
 import { AppEvents, broadcastEvent } from './events'
+import { ProviderFactory } from './ai/providers'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -175,9 +176,9 @@ app.whenReady().then(async () => {
     console.log('[Global Hotkey] Registered Ctrl+Shift+T for text capture')
   }
 
-  // Register global hotkey for Audio Recording (Ctrl+Shift+R)
-  const audioRecordSuccess = globalShortcut.register('CommandOrControl+Shift+R', () => {
-    console.log('[Global Hotkey] Audio recording triggered (Ctrl+Shift+R)')
+  // Register global hotkey for Audio Recording (Ctrl+Shift+V for Voice)
+  const audioRecordSuccess = globalShortcut.register('CommandOrControl+Shift+V', () => {
+    console.log('[Global Hotkey] Audio recording triggered (Ctrl+Shift+V)')
     // Send event to Work Mode window if open
     if (workModeWindow.isOpen()) {
       // TODO: Implement audio recording trigger
@@ -188,9 +189,9 @@ app.whenReady().then(async () => {
   })
 
   if (!audioRecordSuccess) {
-    console.error('[Global Hotkey] Failed to register Ctrl+Shift+R')
+    console.error('[Global Hotkey] Failed to register Ctrl+Shift+V')
   } else {
-    console.log('[Global Hotkey] Registered Ctrl+Shift+R for audio recording')
+    console.log('[Global Hotkey] Registered Ctrl+Shift+V for audio recording')
   }
 
   app.on('activate', () => {
@@ -531,6 +532,144 @@ Keep it concise and actionable.`
     }
   })
 
+  // Chat
+  ipcMain.handle('chat:send', async (_, projectId: string, messages: any[]) => {
+    console.log('[Chat] Sending message to LLM, project:', projectId, 'message count:', messages.length)
+
+    try {
+      // Get last 3 non-chat captures as context
+      const allCaptures = await repository.getCapturesByProject(projectId)
+      const nonChatCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 3)
+
+      console.log('[Chat] Found', nonChatCaptures.length, 'non-chat captures for context')
+
+      // Build context string
+      let contextStr = ''
+      if (nonChatCaptures.length > 0) {
+        contextStr = 'Recent project captures:\n\n'
+        for (const capture of nonChatCaptures) {
+          contextStr += `[${capture.type}] ${capture.title || 'Untitled'}\n`
+          if (capture.bodyText) {
+            contextStr += `${capture.bodyText.substring(0, 300)}${capture.bodyText.length > 300 ? '...' : ''}\n\n`
+          }
+        }
+      }
+
+      console.log('[Chat] Context length:', contextStr.length, 'characters')
+
+      // Prepend context as system message
+      const messagesWithContext = contextStr
+        ? [
+            { role: 'system', content: `You are a helpful assistant for this project. Here is some recent context:\n\n${contextStr}` },
+            ...messages
+          ]
+        : messages
+
+      // Get LLM config from settings
+      const llmConfig = {
+        type: (await repository.getSetting('llm_type') || 'disabled') as 'remote' | 'disabled',
+        baseUrl: await repository.getSetting('llm_base_url') || 'https://api.openai.com/v1',
+        apiKey: await repository.getSetting('llm_api_key') || '',
+        model: await repository.getSetting('llm_model') || 'gpt-4o-mini'
+      }
+
+      const factory = new ProviderFactory()
+      const provider = factory.createLLMProvider(llmConfig)
+
+      const result = await provider.chat(messagesWithContext)
+
+      console.log('[Chat] Response received, length:', result.text.length)
+
+      return {
+        role: 'assistant',
+        content: result.text,
+        timestamp: new Date().toISOString()
+      }
+    } catch (error) {
+      console.error('[Chat] Error:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('chat:save', async (_, projectId: string, messages: any[]) => {
+    console.log('[Chat] Saving chat transcript, project:', projectId, 'message count:', messages.length)
+
+    const capture = await repository.createCapture({
+      projectId,
+      type: 'chat',
+      title: `Chat — ${new Date().toLocaleString()}`,
+      bodyText: JSON.stringify(messages)
+    })
+
+    broadcastEvent(AppEvents.captureCreated(projectId), capture)
+    console.log('[Chat] Chat saved as capture:', capture.id)
+
+    return capture
+  })
+
+  ipcMain.handle('chat:extractTasks', async (_, projectId: string, _messages: any[]) => {
+    console.log('[Chat] Extracting tasks from chat, project:', projectId)
+
+    // TODO: Implement task extraction via job queue
+    // For now, return placeholder job ID
+    console.warn('[Chat] Task extraction not yet implemented')
+    return 'placeholder-job-id'
+  })
+
+  ipcMain.handle('chat:extractDecisions', async (_, projectId: string, _messages: any[]) => {
+    console.log('[Chat] Extracting decisions from chat, project:', projectId)
+
+    // TODO: Implement decision extraction via job queue
+    // For now, return placeholder job ID
+    console.warn('[Chat] Decision extraction not yet implemented')
+    return 'placeholder-job-id'
+  })
+
+  ipcMain.handle('chat:updateSummary', async (_, projectId: string) => {
+    console.log('[Chat] Triggering summary regeneration, project:', projectId)
+
+    // Reuse existing summary generation logic
+    try {
+      const captures = await repository.getCapturesByProject(projectId)
+      const tasks = await repository.getOpenTasks(projectId)
+
+      let context = `Project captures from last 14 days:\n\n`
+      for (const capture of captures.slice(0, 20)) {
+        context += `- Capture: ${capture.title} (${capture.type})\n`
+        if (capture.bodyText) {
+          context += `  ${capture.bodyText.substring(0, 200)}\n`
+        }
+      }
+
+      context += `\n\nOpen tasks:\n\n`
+      for (const task of tasks) {
+        context += `- Task: ${task.title} (Priority: ${task.priority}, Estimate: ${task.estimateMinutes}min)\n`
+        if (task.notes) {
+          context += `  ${task.notes.substring(0, 200)}\n`
+        }
+      }
+
+      const prompt = `You are helping summarize a project. Based on the recent captures and open tasks, create a markdown summary with:
+1. What's going on (brief overview)
+2. Current open loops (active work items)
+3. Recent decisions or notes
+4. Next 3 likely actions
+
+Keep it concise and actionable.`
+
+      const jobId = await jobManager.enqueueSummary(projectId, context, prompt)
+
+      // Emit event to renderer
+      const job = await repository.getJob(jobId)
+      if (job && mainWindow) {
+        mainWindow.webContents.send('job:updated', job)
+      }
+    } catch (error) {
+      console.error('[Chat] Error updating summary:', error)
+      throw error
+    }
+  })
+
   // Jobs
   ipcMain.handle('jobs:getAll', async () => {
     return repository.getAllJobs()
@@ -606,8 +745,8 @@ Keep it concise and actionable.`
   })
 
   // Text Capture
-  ipcMain.handle('textCapture:openWindow', async () => {
-    await textCaptureWindow.create()
+  ipcMain.handle('textCapture:openWindow', async (_, projectId?: string) => {
+    await textCaptureWindow.create(projectId)
   })
 
   ipcMain.handle('textCapture:closeWindow', async () => {
@@ -615,18 +754,49 @@ Keep it concise and actionable.`
   })
 
   ipcMain.handle('textCapture:save', async (_, text: string) => {
-    // Get active task if any
+    const storedProjectId = textCaptureWindow.getProjectId()
     const activeTask = await activeTaskService.getActiveTask()
 
-    // Create the capture with null title (AI will generate it)
-    const capture = await repository.createCapture({
-      projectId: activeTask?.projectId || null,
-      taskId: activeTask?.id || null,
-      type: 'text',
-      bodyText: text,
-      title: null,
-      isOpenLoop: false
-    })
+    // Determine capture target:
+    // 1. If opened from project page (storedProjectId exists) → project-level capture
+    // 2. If opened from work mode with active task → task-level capture
+    // 3. Otherwise → project-level capture using active task's project (or fail if no context)
+
+    let captureInput: any
+
+    if (storedProjectId) {
+      // Opened from Projects page
+      captureInput = {
+        projectId: storedProjectId,
+        type: 'text',
+        bodyText: text,
+        title: null
+      }
+    } else if (activeTask) {
+      // Opened from Work Mode with active task
+      if (activeTask.projectId) {
+        // Task belongs to a project - create project-level capture
+        captureInput = {
+          projectId: activeTask.projectId,
+          type: 'text',
+          bodyText: text,
+          title: null
+        }
+      } else {
+        // Inbox task - create task-linked capture
+        captureInput = {
+          linkedTaskId: activeTask.id,
+          type: 'text',
+          bodyText: text,
+          title: null
+        }
+      }
+    } else {
+      // No context - this shouldn't happen in normal usage
+      throw new Error('Cannot create text capture: no project or task context')
+    }
+
+    const capture = await repository.createCapture(captureInput)
 
     // Broadcast capture created event
     broadcastEvent(AppEvents.captureCreated(capture.projectId), capture)
