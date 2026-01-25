@@ -13,7 +13,10 @@ import { screenshotHandler } from './screenshot/screenshot-handler'
 import { AppEvents, broadcastEvent } from './events'
 import { ProviderFactory } from './ai/providers'
 import { domainEvents } from './events/emitter'
-import { projectCommands, captureCommands, taskCommands } from './domain/commands'
+import { projectCommands, captureCommands, taskCommands, summaryCommands } from './domain/commands'
+import { allTools } from './mcp/tools/index'
+import { createMCPServer } from './mcp/server'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -109,6 +112,14 @@ function createMenu() {
 app.whenReady().then(async () => {
   initDatabase()
   await jobManager.start()
+
+  // Start MCP server (Phase 3)
+  console.log('[MCP] Starting MCP stdio server...')
+  const mcpServer = createMCPServer()
+  const transport = new StdioServerTransport()
+  await mcpServer.connect(transport)
+  console.log('[MCP] MCP server started - ready for tool calls')
+
   setupIPC()
   createMenu()
   createWindow()
@@ -268,6 +279,30 @@ function setupIPC() {
   ipcMain.handle('projects:delete', async (_, id: string) => {
     await repository.deleteProject(id)
     broadcastEvent(AppEvents.projectDeleted(), { id })
+  })
+
+  // MCP Tool Test Handler (for Phase 2 testing)
+  ipcMain.handle('mcp:callTool', async (_, toolName: string, args: any) => {
+    console.log(`[MCP Test] Calling tool: ${toolName}`, args)
+    const toolEntry = allTools.find(t => t.definition.name === toolName)
+
+    if (!toolEntry) {
+      throw new Error(`Unknown tool: ${toolName}`)
+    }
+
+    try {
+      // Validate with Zod
+      const validatedArgs = toolEntry.definition.inputSchema.parse(args)
+
+      // Execute tool
+      const result = await toolEntry.handler(validatedArgs)
+      console.log(`[MCP Test] Tool ${toolName} completed`)
+
+      return result
+    } catch (error) {
+      console.error(`[MCP Test] Tool ${toolName} error:`, error)
+      throw error
+    }
   })
 
   // Captures
@@ -602,16 +637,15 @@ Keep it concise and actionable.`
   ipcMain.handle('chat:save', async (_, projectId: string, messages: any[]) => {
     console.log('[Chat] Saving chat transcript, project:', projectId, 'message count:', messages.length)
 
-    const capture = await repository.createCapture({
+    // Use domain command - emits event automatically
+    const capture = await captureCommands.createCapture({
       projectId,
       type: 'chat',
       title: `Chat — ${new Date().toLocaleString()}`,
       bodyText: JSON.stringify(messages)
     })
 
-    broadcastEvent(AppEvents.captureCreated(projectId), capture)
     console.log('[Chat] Chat saved as capture:', capture.id)
-
     return capture
   })
 

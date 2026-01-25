@@ -215,6 +215,11 @@ const api = {
   },
   offDomainEvent: (callback: any) => {
     ipcRenderer.removeListener('domain-event', callback)
+  },
+
+  // MCP (Phase 2 - testing)
+  mcp: {
+    callTool: (toolName: string, args: any) => ipcRenderer.invoke('mcp:callTool', toolName, args)
   }
 }
 

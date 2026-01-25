@@ -154,6 +154,19 @@ export class JobManager {
           if (updatedJob && this.mainWindow) {
             this.mainWindow.webContents.send('job:updated', updatedJob)
             console.log('[JobManager] Emitted job:updated event for job:', message.jobId)
+
+            // Emit domain event for summary completion (Phase 3)
+            if (message.success && updatedJob.type === 'summary' && updatedJob.entityId) {
+              const { domainEvents } = await import('../events/emitter')
+              const summary = await repository.getLatestProjectSummary(updatedJob.entityId)
+              if (summary) {
+                domainEvents.emitDomainEvent({
+                  type: 'summary.generated',
+                  projectId: updatedJob.entityId,
+                  summaryId: summary.id
+                })
+              }
+            }
           }
         } catch (error) {
           console.error('[JobManager] Failed to fetch and emit job update:', error)

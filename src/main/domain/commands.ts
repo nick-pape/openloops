@@ -176,7 +176,25 @@ export class TaskCommands {
   }
 }
 
+export class SummaryCommands {
+  async createSummary(projectId: string, summaryMd: string, provider: string, windowStart: Date, windowEnd: Date) {
+    const summary = await repository.createProjectSummary(projectId, summaryMd, provider, windowStart, windowEnd)
+    domainEvents.emitDomainEvent({
+      type: 'summary.generated',
+      projectId,
+      summaryId: summary.id
+    })
+    return summary
+  }
+
+  // Read operations - no events
+  async getLatestSummary(projectId: string) {
+    return repository.getLatestProjectSummary(projectId)
+  }
+}
+
 // Export singleton instances
 export const projectCommands = new ProjectCommands()
 export const captureCommands = new CaptureCommands()
 export const taskCommands = new TaskCommands()
+export const summaryCommands = new SummaryCommands()
