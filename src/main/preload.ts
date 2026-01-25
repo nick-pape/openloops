@@ -207,6 +207,14 @@ const api = {
   offTaskDeleted: (projectId: string | null, callback: any) => {
     const channel = `task:deleted:${projectId || 'inbox'}`
     ipcRenderer.removeListener(channel, callback)
+  },
+
+  // Domain events (new unified event system)
+  onDomainEvent: (callback: (event: any) => void) => {
+    ipcRenderer.on('domain-event', (_event, domainEvent) => callback(domainEvent))
+  },
+  offDomainEvent: (callback: any) => {
+    ipcRenderer.removeListener('domain-event', callback)
   }
 }
 

@@ -12,6 +12,8 @@ import { DayPlanner } from './planning/day-planner'
 import { screenshotHandler } from './screenshot/screenshot-handler'
 import { AppEvents, broadcastEvent } from './events'
 import { ProviderFactory } from './ai/providers'
+import { domainEvents } from './events/emitter'
+import { projectCommands, captureCommands, taskCommands } from './domain/commands'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -33,6 +35,9 @@ function createWindow() {
   // Set main window reference for job manager to emit events
   jobManager.setMainWindow(mainWindow)
 
+  // Set main window reference for domain events
+  domainEvents.setMainWindow(mainWindow)
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools()
@@ -42,6 +47,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     jobManager.setMainWindow(null)
+    domainEvents.setMainWindow(null)
     mainWindow = null
   })
 }
@@ -246,7 +252,9 @@ function setupIPC() {
   })
 
   ipcMain.handle('projects:create', async (_, name: string) => {
-    const project = await repository.createProject({ name })
+    // Use domain command (emits event automatically)
+    const project = await projectCommands.createProject({ name })
+    // Keep old broadcast for backwards compatibility (will remove later)
     broadcastEvent(AppEvents.projectCreated(), project)
     return project
   })
