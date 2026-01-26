@@ -424,6 +424,15 @@ function setupIPC() {
     return buffer.buffer
   })
 
+  ipcMain.handle('files:readAudio', async (_, filePath: string) => {
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Audio file not found')
+    }
+
+    const buffer = fs.readFileSync(filePath)
+    return buffer.buffer
+  })
+
   ipcMain.handle('files:selectImage', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],

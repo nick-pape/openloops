@@ -75,7 +75,8 @@ const api = {
       ipcRenderer.invoke('files:saveImage', projectId, arrayBuffer, extension),
     saveAudio: (projectId: string, arrayBuffer: ArrayBuffer) =>
       ipcRenderer.invoke('files:saveAudio', projectId, arrayBuffer),
-    readImage: (filePath: string) => ipcRenderer.invoke('files:readImage', filePath)
+    readImage: (filePath: string) => ipcRenderer.invoke('files:readImage', filePath),
+    readAudio: (filePath: string) => ipcRenderer.invoke('files:readAudio', filePath)
   },
 
   // Audio

@@ -281,22 +281,66 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
+
+      // Try to get supported MIME types
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : ''
+
+      if (!mimeType) {
+        throw new Error('No supported audio format found')
+      }
+
+      console.log('[Audio] Using MIME type:', mimeType)
+      const mediaRecorder = new MediaRecorder(stream, { mimeType })
 
       audioChunksRef.current = []
 
       mediaRecorder.ondataavailable = (event) => {
+        console.log('[Audio] Data available, size:', event.data.size)
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data)
         }
       }
 
+      mediaRecorder.onerror = (event: any) => {
+        console.error('[Audio] MediaRecorder error:', event.error)
+        alert(`Recording error: ${event.error?.message || 'Unknown error'}`)
+        stream.getTracks().forEach(track => track.stop())
+        setIsRecording(false)
+      }
+
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        console.log('[Audio] Recording stopped, chunks collected:', audioChunksRef.current.length)
+
+        if (audioChunksRef.current.length === 0) {
+          console.error('[Audio] No audio chunks recorded!')
+          alert('Recording failed: No audio data captured')
+          stream.getTracks().forEach(track => track.stop())
+          return
+        }
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType })
+        console.log('[Audio] Blob created, size:', audioBlob.size, 'bytes')
+
+        if (audioBlob.size === 0) {
+          console.error('[Audio] Blob is empty!')
+          alert('Recording failed: Empty audio file')
+          stream.getTracks().forEach(track => track.stop())
+          return
+        }
+
         const arrayBuffer = await audioBlob.arrayBuffer()
 
         try {
           const filePath = await window.electron.files.saveAudio(projectId, arrayBuffer)
+          console.log('[Audio] File saved:', filePath)
 
           const capture = await window.electron.captures.create({
             projectId,
@@ -305,30 +349,41 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
             filePath
           })
 
+          console.log('[Audio] Capture created:', capture.id)
+
           // Request transcription
           await window.electron.audio.requestTranscription(capture.id, filePath)
 
-          await loadProject()
+          await loadCaptures()
         } catch (error) {
-          console.error('Failed to save audio:', error)
+          console.error('[Audio] Failed to save audio:', error)
+          alert(`Failed to save recording: ${error}`)
         }
 
         stream.getTracks().forEach(track => track.stop())
       }
 
-      mediaRecorder.start()
+      // Start recording with 1 second timeslices to ensure data is collected
+      console.log('[Audio] Starting recording...')
+      mediaRecorder.start(1000)
       mediaRecorderRef.current = mediaRecorder
       setIsRecording(true)
+      console.log('[Audio] Recording started successfully')
     } catch (error) {
-      console.error('Failed to start recording:', error)
-      alert('Failed to access microphone')
+      console.error('[Audio] Failed to start recording:', error)
+      alert(`Failed to access microphone: ${error}`)
     }
   }
 
   const handleStopRecording = () => {
+    console.log('[Audio] Stop recording requested')
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      console.log('[Audio] MediaRecorder state:', mediaRecorderRef.current.state)
       mediaRecorderRef.current.stop()
       setIsRecording(false)
+      console.log('[Audio] Stop called, waiting for onstop event...')
+    } else {
+      console.warn('[Audio] Cannot stop: MediaRecorder is inactive or null')
     }
   }
 
@@ -1042,10 +1097,14 @@ function CaptureAccordion({
 }) {
   const [transcription, setTranscription] = useState<Transcription | null>(null)
   const [imageData, setImageData] = useState<string | null>(null)
+  const [audioData, setAudioData] = useState<string | null>(null)
 
   useEffect(() => {
     if (capture.type === 'audio') {
       loadTranscription()
+      if (capture.filePath) {
+        loadAudio()
+      }
     } else if (capture.type === 'image' && capture.filePath) {
       loadImage()
     }
@@ -1065,6 +1124,18 @@ function CaptureAccordion({
       setImageData(url)
     } catch (error) {
       console.error('Failed to load image:', error)
+    }
+  }
+
+  const loadAudio = async () => {
+    if (!capture.filePath) return
+    try {
+      const arrayBuffer = await window.electron.files.readAudio(capture.filePath)
+      const blob = new Blob([arrayBuffer], { type: 'audio/webm' })
+      const url = URL.createObjectURL(blob)
+      setAudioData(url)
+    } catch (error) {
+      console.error('Failed to load audio:', error)
     }
   }
 
@@ -1118,9 +1189,9 @@ function CaptureAccordion({
             </div>
           )}
           {imageData && <img src={imageData} alt={capture.title} className="capture-image" />}
-          {capture.type === 'audio' && capture.filePath && (
+          {capture.type === 'audio' && audioData && (
             <div className="audio-player-container">
-              <audio controls src={`file://${capture.filePath}`} className="audio-player">
+              <audio controls src={audioData} className="audio-player">
                 Your browser does not support the audio element.
               </audio>
             </div>
