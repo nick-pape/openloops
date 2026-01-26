@@ -46,13 +46,20 @@ export class RemoteTranscriptionProvider implements TranscriptionProvider {
   ) {}
 
   async transcribe(audioFilePath: string): Promise<string> {
+    const url = `${this.baseUrl}/audio/transcriptions`
+    console.log('[Transcription] Starting transcription')
+    console.log('[Transcription] URL:', url)
+    console.log('[Transcription] Model:', this.model)
+    console.log('[Transcription] Audio file:', audioFilePath)
+
     const formData = new FormData()
     const audioBuffer = fs.readFileSync(audioFilePath)
     const audioBlob = new Blob([audioBuffer])
     formData.append('file', audioBlob, path.basename(audioFilePath))
     formData.append('model', this.model)
 
-    const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
+    console.log('[Transcription] Sending request...')
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiKey}`
@@ -60,11 +67,16 @@ export class RemoteTranscriptionProvider implements TranscriptionProvider {
       body: formData
     })
 
+    console.log('[Transcription] Response status:', response.status, response.statusText)
+
     if (!response.ok) {
-      throw new Error(`Transcription failed: ${response.statusText}`)
+      const errorText = await response.text()
+      console.error('[Transcription] Error response body:', errorText)
+      throw new Error(`Transcription failed (${response.status}): ${response.statusText} - ${errorText}`)
     }
 
     const data = await response.json()
+    console.log('[Transcription] Success! Text length:', data.text?.length || 0)
     return data.text
   }
 }
