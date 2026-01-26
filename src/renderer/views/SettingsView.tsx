@@ -179,77 +179,39 @@ export function SettingsView() {
       )}
 
       <div className="settings-section">
-        <h2>Transcription Provider</h2>
+        <h2>Transcription Provider (OpenAI-Compatible API)</h2>
         <div className="form-group">
-          <label>Provider Type</label>
-          <select
-            value={settings.transcription_type || 'remote'}
-            onChange={(e) => handleSettingChange('transcription_type', e.target.value)}
-          >
-            <option value="remote">Remote (OpenAI Whisper API)</option>
-            <option value="local">Local (whisper.cpp)</option>
-          </select>
+          <label>API Key</label>
+          <input
+            type="password"
+            value={secrets.transcription_api_key}
+            onChange={(e) => handleSecretChange('transcription_api_key', e.target.value)}
+            placeholder="sk-..."
+          />
         </div>
-
-        {settings.transcription_type === 'remote' && (
-          <>
-            <div className="form-group">
-              <label>API Key</label>
-              <input
-                type="password"
-                value={secrets.transcription_api_key}
-                onChange={(e) => handleSecretChange('transcription_api_key', e.target.value)}
-                placeholder="sk-..."
-              />
+        <div className="form-group">
+          <label>Base URL (optional, for OpenAI-compatible endpoints)</label>
+          <div className="input-with-button">
+            <input
+              type="text"
+              value={settings.transcription_base_url || ''}
+              onChange={(e) => handleSettingChange('transcription_base_url', e.target.value)}
+              placeholder="https://api.openai.com/v1"
+            />
+            <button
+              onClick={handleTestTranscriptionConnection}
+              disabled={testingTranscription}
+              className="test-button"
+            >
+              {testingTranscription ? 'Testing...' : 'Test Connection'}
+            </button>
+          </div>
+          {transcriptionTestResult && (
+            <div className={`test-result ${transcriptionTestResult.includes('✅') ? 'success' : 'error'}`}>
+              {transcriptionTestResult}
             </div>
-            <div className="form-group">
-              <label>Base URL (optional, for OpenAI-compatible endpoints)</label>
-              <div className="input-with-button">
-                <input
-                  type="text"
-                  value={settings.transcription_base_url || ''}
-                  onChange={(e) => handleSettingChange('transcription_base_url', e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                />
-                <button
-                  onClick={handleTestTranscriptionConnection}
-                  disabled={testingTranscription}
-                  className="test-button"
-                >
-                  {testingTranscription ? 'Testing...' : 'Test Connection'}
-                </button>
-              </div>
-              {transcriptionTestResult && (
-                <div className={`test-result ${transcriptionTestResult.includes('✅') ? 'success' : 'error'}`}>
-                  {transcriptionTestResult}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {settings.transcription_type === 'local' && (
-          <>
-            <div className="form-group">
-              <label>whisper.cpp Binary Path</label>
-              <input
-                type="text"
-                value={settings.whisper_binary_path || ''}
-                onChange={(e) => handleSettingChange('whisper_binary_path', e.target.value)}
-                placeholder="/path/to/whisper"
-              />
-            </div>
-            <div className="form-group">
-              <label>Model Path</label>
-              <input
-                type="text"
-                value={settings.whisper_model_path || ''}
-                onChange={(e) => handleSettingChange('whisper_model_path', e.target.value)}
-                placeholder="/path/to/ggml-base.en.bin"
-              />
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="settings-section">

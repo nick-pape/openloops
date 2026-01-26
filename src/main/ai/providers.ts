@@ -1,4 +1,3 @@
-import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
@@ -66,57 +65,6 @@ export class RemoteTranscriptionProvider implements TranscriptionProvider {
 
     const data = await response.json()
     return data.text
-  }
-}
-
-// Local Transcription Provider (whisper.cpp)
-export class LocalTranscriptionProvider implements TranscriptionProvider {
-  name = 'local-whisper'
-
-  constructor(
-    private whisperBinaryPath: string,
-    private modelPath: string
-  ) {}
-
-  async transcribe(audioFilePath: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-m', this.modelPath,
-        '-f', audioFilePath,
-        '--output-txt',
-        '--no-timestamps'
-      ]
-
-      const process = spawn(this.whisperBinaryPath, args)
-      let stdout = ''
-      let stderr = ''
-
-      process.stdout.on('data', (data) => {
-        stdout += data.toString()
-      })
-
-      process.stderr.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      process.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(`whisper.cpp failed: ${stderr}`))
-          return
-        }
-
-        // whisper.cpp outputs to a .txt file
-        const outputFile = audioFilePath + '.txt'
-        if (fs.existsSync(outputFile)) {
-          const text = fs.readFileSync(outputFile, 'utf-8').trim()
-          fs.unlinkSync(outputFile) // Cleanup
-          resolve(text)
-        } else {
-          // Fallback to stdout
-          resolve(stdout.trim())
-        }
-      })
-    })
   }
 }
 
@@ -405,23 +353,13 @@ ${lines.slice(0, 10).join('\n')}
 // Provider Factory
 export class ProviderFactory {
   createTranscriptionProvider(config: {
-    type: 'remote' | 'local'
-    apiKey?: string
+    apiKey: string
     baseUrl?: string
-    whisperBinaryPath?: string
-    modelPath?: string
   }): TranscriptionProvider {
-    if (config.type === 'remote') {
-      if (!config.apiKey) {
-        throw new Error('API key required for remote transcription')
-      }
-      return new RemoteTranscriptionProvider(config.apiKey, config.baseUrl)
-    } else {
-      if (!config.whisperBinaryPath || !config.modelPath) {
-        throw new Error('Whisper binary and model path required for local transcription')
-      }
-      return new LocalTranscriptionProvider(config.whisperBinaryPath, config.modelPath)
+    if (!config.apiKey) {
+      throw new Error('API key required for remote transcription')
     }
+    return new RemoteTranscriptionProvider(config.apiKey, config.baseUrl)
   }
 
   createLLMProvider(config: {

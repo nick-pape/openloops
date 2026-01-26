@@ -272,12 +272,9 @@ export class JobManager {
 
   private async getConfig() {
     // Get settings from database
-    const transcriptionType = await repository.getSetting('transcription_type') || 'remote'
     // Secrets are stored with 'secret_' prefix
     const transcriptionApiKey = await repository.getSetting('secret_transcription_api_key') || ''
     const transcriptionBaseUrl = await repository.getSetting('transcription_base_url') || 'https://api.openai.com/v1'
-    const whisperBinaryPath = await repository.getSetting('whisper_binary_path') || ''
-    const whisperModelPath = await repository.getSetting('whisper_model_path') || ''
 
     const llmType = await repository.getSetting('llm_type') || 'disabled'
     // Secrets are stored with 'secret_' prefix
@@ -286,8 +283,8 @@ export class JobManager {
     const llmModel = await repository.getSetting('llm_model') || 'gpt-4o-mini'
 
     logger.info('[JobManager] Config retrieved:', {
-      transcriptionType,
       transcriptionApiKeyLength: transcriptionApiKey.length,
+      transcriptionBaseUrl,
       llmType,
       llmApiKeyLength: llmApiKey.length,
       llmBaseUrl,
@@ -296,11 +293,8 @@ export class JobManager {
 
     return {
       transcription: {
-        type: transcriptionType,
         apiKey: transcriptionApiKey,
-        baseUrl: transcriptionBaseUrl,
-        whisperBinaryPath,
-        modelPath: whisperModelPath
+        baseUrl: transcriptionBaseUrl
       },
       llm: {
         type: llmType,
