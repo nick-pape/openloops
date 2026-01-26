@@ -5,15 +5,54 @@ import { ChatMessage } from '../../types'
  *
  * This runtime manages chat state and communicates with the Electron main process
  * via IPC. It provides a simple interface for assistant-ui components.
+ *
+ * Supports streaming responses via AI SDK.
  */
 export class ElectronChatRuntime {
   private projectId: string
   private messages: ChatMessage[] = []
   private subscribers: Set<() => void> = new Set()
   private isLoading: boolean = false
+  private currentStreamId: string | null = null
+  private streamingMessageIndex: number = -1
+  private cleanupDelta: (() => void) | null = null
+  private cleanupDone: (() => void) | null = null
 
   constructor(projectId: string) {
     this.projectId = projectId
+    this.setupStreamingListeners()
+  }
+
+  /**
+   * Set up listeners for streaming events
+   */
+  private setupStreamingListeners() {
+    // Listen for streaming deltas
+    this.cleanupDelta = window.electron.chat.onDelta((data) => {
+      if (data.streamId === this.currentStreamId && this.streamingMessageIndex >= 0) {
+        // Append delta to the current streaming message
+        this.messages[this.streamingMessageIndex].content += data.delta
+        this.notifySubscribers()
+      }
+    })
+
+    // Listen for stream completion
+    this.cleanupDone = window.electron.chat.onDone((data) => {
+      if (data.streamId === this.currentStreamId) {
+        this.isLoading = false
+        this.currentStreamId = null
+        this.streamingMessageIndex = -1
+        this.notifySubscribers()
+      }
+    })
+  }
+
+  /**
+   * Cleanup listeners when runtime is disposed
+   */
+  dispose() {
+    if (this.cleanupDelta) this.cleanupDelta()
+    if (this.cleanupDone) this.cleanupDone()
   }
 
   /**
@@ -48,7 +87,7 @@ export class ElectronChatRuntime {
   }
 
   /**
-   * Send a message and get response
+   * Send a message and get streaming response
    */
   async sendMessage(content: string): Promise<void> {
     // Add user message
@@ -59,29 +98,63 @@ export class ElectronChatRuntime {
     }
 
     this.messages.push(userMessage)
+
+    // Create placeholder for assistant response (will be filled by streaming)
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString()
+    }
+    this.messages.push(assistantMessage)
+    this.streamingMessageIndex = this.messages.length - 1
+
     this.isLoading = true
+    this.currentStreamId = `${this.projectId}-${Date.now()}`
     this.notifySubscribers()
 
     try {
-      // Send to backend and get assistant response
-      const response = await window.electron.chat.send(this.projectId, this.messages)
+      // Send to backend - streaming deltas will update the message via events
+      const response = await window.electron.chat.send(this.projectId,
+        this.messages.slice(0, -1) // Don't send the empty assistant message
+      )
 
-      // Add assistant response
-      this.messages.push(response)
+      // Update final message content (in case we missed any deltas)
+      if (this.streamingMessageIndex >= 0) {
+        this.messages[this.streamingMessageIndex] = response
+      }
+
       this.isLoading = false
+      this.currentStreamId = null
+      this.streamingMessageIndex = -1
       this.notifySubscribers()
     } catch (error) {
       console.error('[ElectronChatRuntime] Error sending message:', error)
 
-      // Add error message
-      const errorMessage: ChatMessage = {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
-        timestamp: new Date().toISOString()
+      // Update the placeholder with error message
+      if (this.streamingMessageIndex >= 0) {
+        this.messages[this.streamingMessageIndex] = {
+          role: 'assistant',
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+          timestamp: new Date().toISOString()
+        }
       }
 
-      this.messages.push(errorMessage)
       this.isLoading = false
+      this.currentStreamId = null
+      this.streamingMessageIndex = -1
+      this.notifySubscribers()
+    }
+  }
+
+  /**
+   * Stop the current generation
+   */
+  async stopGeneration(): Promise<void> {
+    if (this.currentStreamId) {
+      await window.electron.chat.cancel(this.currentStreamId)
+      this.isLoading = false
+      this.currentStreamId = null
+      this.streamingMessageIndex = -1
       this.notifySubscribers()
     }
   }

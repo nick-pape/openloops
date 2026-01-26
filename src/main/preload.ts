@@ -134,10 +134,22 @@ const api = {
   // Chat
   chat: {
     send: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:send', projectId, messages),
+    cancel: (streamId: string) => ipcRenderer.invoke('chat:cancel', streamId),
     save: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:save', projectId, messages),
     extractTasks: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractTasks', projectId, messages),
     extractDecisions: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractDecisions', projectId, messages),
-    updateSummary: (projectId: string) => ipcRenderer.invoke('chat:updateSummary', projectId)
+    updateSummary: (projectId: string) => ipcRenderer.invoke('chat:updateSummary', projectId),
+    // Streaming events
+    onDelta: (callback: (data: { streamId: string; delta: string }) => void) => {
+      const listener = (_event: any, data: { streamId: string; delta: string }) => callback(data)
+      ipcRenderer.on('chat:delta', listener)
+      return () => ipcRenderer.removeListener('chat:delta', listener)
+    },
+    onDone: (callback: (data: { streamId: string }) => void) => {
+      const listener = (_event: any, data: { streamId: string }) => callback(data)
+      ipcRenderer.on('chat:done', listener)
+      return () => ipcRenderer.removeListener('chat:done', listener)
+    }
   },
 
   // Calendar

@@ -297,3 +297,27 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Loading indicator with stop button */
+.chat-loading-indicator {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.stop-generation-btn {
+  padding: 0.5rem 1rem;
+  background: var(--bg-secondary, #f6f8fa);
+  color: var(--text-secondary, #6b7280);
+  border: 1px solid var(--border-color, #e1e4e8);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.stop-generation-btn:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+}

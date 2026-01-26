@@ -18,6 +18,11 @@ import { createMCPServer } from './mcp/server'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { startHTTPTransport, stopHTTPTransport, isHTTPTransportRunning } from './mcp/http-transport'
 import { initLogger, closeLogger, logger } from './logger'
+import { streamText, CoreMessage } from 'ai'
+import { createAiSdkModel } from './llm/aiSdkClient'
+
+// Track active chat streams for cancellation
+const activeChatStreams = new Map<string, AbortController>()
 
 let mainWindow: BrowserWindow | null = null
 
@@ -625,11 +630,27 @@ Keep it concise and actionable.`
     }
   })
 
-  // Chat
-  ipcMain.handle('chat:send', async (_, projectId: string, messages: any[]) => {
-    console.log('[Chat] Sending message to LLM, project:', projectId, 'message count:', messages.length)
+  // Chat - uses AI SDK with streaming
+  ipcMain.handle('chat:send', async (event, projectId: string, messages: any[]) => {
+    const streamId = `${projectId}-${Date.now()}`
+    console.log('[Chat] Starting streaming chat, project:', projectId, 'streamId:', streamId)
 
     try {
+      // Get LLM config from settings
+      const llmType = await repository.getSetting('llm_type') || 'disabled'
+      const baseUrl = await repository.getSetting('llm_base_url') || 'https://api.openai.com/v1'
+      const apiKey = await repository.getSetting('secret_llm_api_key') || ''
+      const model = await repository.getSetting('llm_model') || 'gpt-4o-mini'
+
+      // Check if LLM is disabled
+      if (llmType === 'disabled') {
+        return {
+          role: 'assistant',
+          content: 'LLM is disabled. Please configure an LLM provider in Settings.',
+          timestamp: new Date().toISOString()
+        }
+      }
+
       // Get last 5 non-chat captures as context
       const allCaptures = await repository.getCapturesByProject(projectId)
       const nonChatCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 5)
@@ -644,10 +665,8 @@ Keep it concise and actionable.`
           contextStr += `[${capture.type}] ${capture.title || 'Untitled'}\n`
 
           if (capture.type === 'text' && capture.bodyText) {
-            // Text captures: include body text
             contextStr += `${capture.bodyText.substring(0, 300)}${capture.bodyText.length > 300 ? '...' : ''}\n\n`
           } else if (capture.type === 'audio') {
-            // Audio captures: include transcription if available
             const transcription = await repository.getTranscriptionByCapture(capture.id)
             if (transcription?.text) {
               contextStr += `Transcription: ${transcription.text.substring(0, 300)}${transcription.text.length > 300 ? '...' : ''}\n\n`
@@ -655,46 +674,98 @@ Keep it concise and actionable.`
               contextStr += `(audio recording)\n\n`
             }
           } else if (capture.type === 'image') {
-            // Image captures: just note it's an image with title
             contextStr += `(image capture)\n\n`
           }
         }
       }
 
-      console.log('[Chat] Context length:', contextStr.length, 'characters')
+      // Build AI SDK messages format
+      const aiMessages: CoreMessage[] = []
 
-      // Prepend context as system message
-      const messagesWithContext = contextStr
-        ? [
-            { role: 'system', content: `You are a helpful assistant for this project. Here is some recent context:\n\n${contextStr}` },
-            ...messages
-          ]
-        : messages
-
-      // Get LLM config from settings
-      const llmConfig = {
-        type: (await repository.getSetting('llm_type') || 'disabled') as 'remote' | 'disabled',
-        baseUrl: await repository.getSetting('llm_base_url') || 'https://api.openai.com/v1',
-        apiKey: await repository.getSetting('llm_api_key') || '',
-        model: await repository.getSetting('llm_model') || 'gpt-4o-mini'
+      // Add system message with context
+      if (contextStr) {
+        aiMessages.push({
+          role: 'system',
+          content: `You are a helpful assistant for this project. Here is some recent context:\n\n${contextStr}`
+        })
       }
 
-      const factory = new ProviderFactory()
-      const provider = factory.createLLMProvider(llmConfig)
+      // Add conversation messages
+      for (const msg of messages) {
+        aiMessages.push({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content
+        })
+      }
 
-      const result = await provider.chat(messagesWithContext)
+      // Create AI SDK model
+      const modelClient = createAiSdkModel({ baseUrl, model, apiKey })
 
-      console.log('[Chat] Response received, length:', result.text.length)
+      // Create abort controller for cancellation
+      const abortController = new AbortController()
+      activeChatStreams.set(streamId, abortController)
+
+      // Get the sender's webContents to send streaming updates
+      const webContents = event.sender
+
+      // Start streaming
+      console.log('[Chat] Starting AI SDK stream...')
+      let fullText = ''
+
+      const result = streamText({
+        model: modelClient,
+        messages: aiMessages,
+        temperature: 0.7,
+        maxTokens: 2000,
+        abortSignal: abortController.signal
+      })
+
+      // Stream deltas to renderer
+      for await (const textPart of result.textStream) {
+        fullText += textPart
+        webContents.send('chat:delta', { streamId, delta: textPart })
+      }
+
+      // Clean up
+      activeChatStreams.delete(streamId)
+
+      // Send completion signal
+      webContents.send('chat:done', { streamId })
+
+      console.log('[Chat] Stream complete, total length:', fullText.length)
 
       return {
         role: 'assistant',
-        content: result.text,
+        content: fullText,
         timestamp: new Date().toISOString()
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Chat] Error:', error)
+      activeChatStreams.delete(streamId)
+
+      // Check if it was an abort
+      if (error.name === 'AbortError') {
+        return {
+          role: 'assistant',
+          content: '(Generation stopped)',
+          timestamp: new Date().toISOString()
+        }
+      }
+
       throw error
     }
+  })
+
+  // Chat cancellation
+  ipcMain.handle('chat:cancel', async (_, streamId: string) => {
+    console.log('[Chat] Cancelling stream:', streamId)
+    const controller = activeChatStreams.get(streamId)
+    if (controller) {
+      controller.abort()
+      activeChatStreams.delete(streamId)
+      return { success: true }
+    }
+    return { success: false, error: 'Stream not found' }
   })
 
   ipcMain.handle('chat:save', async (_, projectId: string, messages: any[]) => {

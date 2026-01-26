@@ -16,12 +16,15 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
   const [showCommitMenu, setShowCommitMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Subscribe to runtime updates
+  // Subscribe to runtime updates and cleanup on unmount
   useEffect(() => {
     const unsubscribe = runtime.subscribe(() => {
       setUpdateTrigger(prev => prev + 1)
     })
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      runtime.dispose()
+    }
   }, [runtime])
 
   // Auto-scroll to bottom when messages change
@@ -133,17 +136,14 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
         ))}
 
         {isLoading && (
-          <div className="chat-message assistant loading">
-            <div className="message-header">
-              <span className="message-role">🤖 Assistant</span>
-            </div>
-            <div className="message-content">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
+          <div className="chat-loading-indicator">
+            <button
+              className="stop-generation-btn"
+              onClick={() => runtime.stopGeneration()}
+              title="Stop generating"
+            >
+              ⏹ Stop
+            </button>
           </div>
         )}
 
