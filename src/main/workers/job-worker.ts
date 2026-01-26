@@ -106,6 +106,30 @@ async function handleTranscription(
     .set({ status: 'done', text, updatedAt: new Date() })
     .where(eq(schema.transcriptions.captureId, payload.captureId))
 
+  // Generate title from transcript if LLM is available
+  if (text && text.trim()) {
+    try {
+      if (!llmProvider) {
+        llmProvider = factory.createLLMProvider(config.llm)
+      }
+
+      if (llmProvider.name !== 'disabled') {
+        console.log('[Job Worker] Generating title from transcript...')
+        const titleResult = await llmProvider.generateTextTitle(text)
+
+        if (titleResult.text && titleResult.text.trim()) {
+          console.log('[Job Worker] Audio title generated:', titleResult.text)
+          await db.update(schema.captures)
+            .set({ title: titleResult.text.trim() })
+            .where(eq(schema.captures.id, payload.captureId))
+        }
+      }
+    } catch (titleError: any) {
+      // Don't fail the transcription job if title generation fails
+      console.error('[Job Worker] Title generation failed (non-fatal):', titleError.message)
+    }
+  }
+
   return text
 }
 
