@@ -322,7 +322,7 @@ export function SettingsView() {
                     onChange={(e) => handleSettingChange('llm_model', e.target.value)}
                     placeholder="gpt-4o-mini, mistral, llama2, etc."
                   />
-                  {availableModels.length > 0 && (
+                  {availableLLMModels.length > 0 && (
                     <button
                       className="secondary small"
                       onClick={() => setShowModelDropdown(true)}
