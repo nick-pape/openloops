@@ -630,9 +630,9 @@ Keep it concise and actionable.`
     console.log('[Chat] Sending message to LLM, project:', projectId, 'message count:', messages.length)
 
     try {
-      // Get last 3 non-chat captures as context
+      // Get last 5 non-chat captures as context
       const allCaptures = await repository.getCapturesByProject(projectId)
-      const nonChatCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 3)
+      const nonChatCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 5)
 
       console.log('[Chat] Found', nonChatCaptures.length, 'non-chat captures for context')
 
@@ -642,8 +642,21 @@ Keep it concise and actionable.`
         contextStr = 'Recent project captures:\n\n'
         for (const capture of nonChatCaptures) {
           contextStr += `[${capture.type}] ${capture.title || 'Untitled'}\n`
-          if (capture.bodyText) {
+
+          if (capture.type === 'text' && capture.bodyText) {
+            // Text captures: include body text
             contextStr += `${capture.bodyText.substring(0, 300)}${capture.bodyText.length > 300 ? '...' : ''}\n\n`
+          } else if (capture.type === 'audio') {
+            // Audio captures: include transcription if available
+            const transcription = await repository.getTranscriptionByCapture(capture.id)
+            if (transcription?.text) {
+              contextStr += `Transcription: ${transcription.text.substring(0, 300)}${transcription.text.length > 300 ? '...' : ''}\n\n`
+            } else {
+              contextStr += `(audio recording)\n\n`
+            }
+          } else if (capture.type === 'image') {
+            // Image captures: just note it's an image with title
+            contextStr += `(image capture)\n\n`
           }
         }
       }
