@@ -109,43 +109,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }, [projectId])
 
-  // Subscribe to capture events for this project
-  const handleCaptureEvent = useCallback(() => {
-    console.log('[ProjectView] Capture event received, reloading captures')
-    loadCaptures()
-  }, [loadCaptures])
-
-  useEffect(() => {
-    window.electron.onCaptureCreated(projectId, handleCaptureEvent)
-    window.electron.onCaptureUpdated(projectId, handleCaptureEvent)
-    window.electron.onCaptureDeleted(projectId, handleCaptureEvent)
-
-    return () => {
-      window.electron.offCaptureCreated(projectId, handleCaptureEvent)
-      window.electron.offCaptureUpdated(projectId, handleCaptureEvent)
-      window.electron.offCaptureDeleted(projectId, handleCaptureEvent)
-    }
-  }, [projectId, handleCaptureEvent])
-
-  // Subscribe to task events for this project
-  const handleTaskEvent = useCallback(() => {
-    console.log('[ProjectView] Task event received, reloading tasks')
-    loadTasks()
-  }, [loadTasks])
-
-  useEffect(() => {
-    window.electron.onTaskCreated(projectId, handleTaskEvent)
-    window.electron.onTaskUpdated(projectId, handleTaskEvent)
-    window.electron.onTaskDeleted(projectId, handleTaskEvent)
-
-    return () => {
-      window.electron.offTaskCreated(projectId, handleTaskEvent)
-      window.electron.offTaskUpdated(projectId, handleTaskEvent)
-      window.electron.offTaskDeleted(projectId, handleTaskEvent)
-    }
-  }, [projectId, handleTaskEvent])
-
-  // Listen for domain events (from external MCP calls)
+  // Listen for domain events (unified system for both UI and MCP operations)
   useDomainEvents((event) => {
     if (event.type === 'capture.created' && event.projectId === projectId) {
       console.log('[ProjectView] Domain event: capture created, reloading captures')

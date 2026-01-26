@@ -1,5 +1,53 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+/**
+ * Listener tracking system to fix unsubscribe bugs
+ * Maps channel -> WeakMap<originalCallback, wrapperFunction>
+ * This allows us to properly remove wrapped event listeners
+ */
+const listenerMap = new Map<string, WeakMap<Function, Function>>()
+
+function trackListener(channel: string, originalCallback: Function, wrapper: Function): void {
+  if (!listenerMap.has(channel)) {
+    listenerMap.set(channel, new WeakMap())
+  }
+  listenerMap.get(channel)!.set(originalCallback, wrapper)
+}
+
+function getTrackedListener(channel: string, originalCallback: Function): Function | undefined {
+  return listenerMap.get(channel)?.get(originalCallback)
+}
+
+function untrackListener(channel: string, originalCallback: Function): void {
+  listenerMap.get(channel)?.delete(originalCallback)
+}
+
+/**
+ * Debug function to get listener counts per channel
+ * Used to verify no listener growth/leaks
+ */
+function getListenerCounts(): Record<string, number> {
+  const counts: Record<string, number> = {}
+
+  // Count IPC listeners directly from ipcRenderer
+  const channels = [
+    'job:updated',
+    'domain-event',
+    'app:error',
+    'trigger-image-upload',
+    'trigger-screenshot'
+  ]
+
+  for (const channel of channels) {
+    const listenerCount = ipcRenderer.listenerCount(channel)
+    if (listenerCount > 0) {
+      counts[channel] = listenerCount
+    }
+  }
+
+  return counts
+}
+
 const api = {
   // Projects
   projects: {
@@ -151,70 +199,34 @@ const api = {
     ipcRenderer.removeListener('trigger-screenshot', callback)
   },
   onJobUpdated: (callback: (job: any) => void) => {
-    ipcRenderer.on('job:updated', (_event, job) => callback(job))
+    const channel = 'job:updated'
+    const wrapper = (_event: any, job: any) => callback(job)
+    trackListener(channel, callback, wrapper)
+    ipcRenderer.on(channel, wrapper)
   },
   offJobUpdated: (callback: (job: any) => void) => {
-    ipcRenderer.removeListener('job:updated', callback)
+    const channel = 'job:updated'
+    const wrapper = getTrackedListener(channel, callback)
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper)
+      untrackListener(channel, callback)
+    }
   },
 
-  // Capture events (project-scoped)
-  onCaptureCreated: (projectId: string | null, callback: (capture: any) => void) => {
-    const channel = `capture:created:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, capture) => callback(capture))
-  },
-  offCaptureCreated: (projectId: string | null, callback: any) => {
-    const channel = `capture:created:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-  onCaptureUpdated: (projectId: string | null, callback: (capture: any) => void) => {
-    const channel = `capture:updated:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, capture) => callback(capture))
-  },
-  offCaptureUpdated: (projectId: string | null, callback: any) => {
-    const channel = `capture:updated:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-  onCaptureDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => {
-    const channel = `capture:deleted:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, data) => callback(data))
-  },
-  offCaptureDeleted: (projectId: string | null, callback: any) => {
-    const channel = `capture:deleted:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-
-  // Task events (project-scoped)
-  onTaskCreated: (projectId: string | null, callback: (task: any) => void) => {
-    const channel = `task:created:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, task) => callback(task))
-  },
-  offTaskCreated: (projectId: string | null, callback: any) => {
-    const channel = `task:created:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-  onTaskUpdated: (projectId: string | null, callback: (task: any) => void) => {
-    const channel = `task:updated:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, task) => callback(task))
-  },
-  offTaskUpdated: (projectId: string | null, callback: any) => {
-    const channel = `task:updated:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-  onTaskDeleted: (projectId: string | null, callback: (data: { id: string }) => void) => {
-    const channel = `task:deleted:${projectId || 'inbox'}`
-    ipcRenderer.on(channel, (_event, data) => callback(data))
-  },
-  offTaskDeleted: (projectId: string | null, callback: any) => {
-    const channel = `task:deleted:${projectId || 'inbox'}`
-    ipcRenderer.removeListener(channel, callback)
-  },
-
-  // Domain events (new unified event system)
+  // Domain events (unified event system)
   onDomainEvent: (callback: (event: any) => void) => {
-    ipcRenderer.on('domain-event', (_event, domainEvent) => callback(domainEvent))
+    const channel = 'domain-event'
+    const wrapper = (_event: any, domainEvent: any) => callback(domainEvent)
+    trackListener(channel, callback, wrapper)
+    ipcRenderer.on(channel, wrapper)
   },
   offDomainEvent: (callback: any) => {
-    ipcRenderer.removeListener('domain-event', callback)
+    const channel = 'domain-event'
+    const wrapper = getTrackedListener(channel, callback)
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper)
+      untrackListener(channel, callback)
+    }
   },
 
   // MCP (Phase 2 - testing, Phase 4 - HTTP transport)
@@ -229,10 +241,18 @@ const api = {
 
   // App error events
   onAppError: (callback: (error: { title: string; message: string; details?: string }) => void) => {
-    ipcRenderer.on('app:error', (_event, errorData) => callback(errorData))
+    const channel = 'app:error'
+    const wrapper = (_event: any, errorData: any) => callback(errorData)
+    trackListener(channel, callback, wrapper)
+    ipcRenderer.on(channel, wrapper)
   },
   offAppError: (callback: any) => {
-    ipcRenderer.removeListener('app:error', callback)
+    const channel = 'app:error'
+    const wrapper = getTrackedListener(channel, callback)
+    if (wrapper) {
+      ipcRenderer.removeListener(channel, wrapper)
+      untrackListener(channel, callback)
+    }
   },
 
   // Generic event listener (for future events)
@@ -241,6 +261,11 @@ const api = {
   },
   removeListener: (channel: string, callback: (...args: any[]) => void) => {
     ipcRenderer.removeListener(channel, callback)
+  },
+
+  // Debug: Get listener counts per channel (for leak detection)
+  debug: {
+    getListenerCounts: () => getListenerCounts()
   }
 }
 

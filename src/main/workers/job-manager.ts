@@ -156,24 +156,48 @@ export class JobManager {
             this.mainWindow.webContents.send('job:updated', updatedJob)
             logger.info('[JobManager] Emitted job:updated event for job:', message.jobId)
 
-            // Emit domain event for summary completion (Phase 3)
-            if (message.success && updatedJob.type === 'summary') {
+            // Emit domain events for completed jobs
+            if (message.success) {
               try {
+                const { domainEvents } = await import('../events/emitter')
                 const payload = JSON.parse(updatedJob.payload)
-                const projectId = payload.projectId
-                if (projectId) {
-                  const { domainEvents } = await import('../events/emitter')
-                  const summary = await repository.getLatestProjectSummary(projectId)
-                  if (summary) {
+
+                if (updatedJob.type === 'summary') {
+                  const projectId = payload.projectId
+                  if (projectId) {
+                    const summary = await repository.getLatestProjectSummary(projectId)
+                    if (summary) {
+                      domainEvents.emitDomainEvent({
+                        type: 'summary.generated',
+                        projectId: projectId,
+                        summaryId: summary.id
+                      })
+                      logger.info('[JobManager] Emitted summary.generated domain event')
+                    }
+                  }
+                } else if (updatedJob.type === 'text-title-generation' || updatedJob.type === 'image-description') {
+                  // Capture title was updated - emit capture.updated event
+                  const captureId = payload.captureId
+                  if (captureId) {
                     domainEvents.emitDomainEvent({
-                      type: 'summary.generated',
-                      projectId: projectId,
-                      summaryId: summary.id
+                      type: 'capture.updated',
+                      captureId: captureId
                     })
+                    logger.info(`[JobManager] Emitted capture.updated domain event for ${updatedJob.type}`)
+                  }
+                } else if (updatedJob.type === 'transcription') {
+                  // Transcription completed - emit capture.updated event
+                  const captureId = payload.captureId
+                  if (captureId) {
+                    domainEvents.emitDomainEvent({
+                      type: 'capture.updated',
+                      captureId: captureId
+                    })
+                    logger.info('[JobManager] Emitted capture.updated domain event for transcription')
                   }
                 }
               } catch (error) {
-                logger.error('[JobManager] Failed to emit summary domain event:', error)
+                logger.error('[JobManager] Failed to emit domain event:', error)
               }
             }
           }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 export type DomainEvent =
   | { type: 'project.created'; projectId: string; name: string }
@@ -20,6 +20,9 @@ export type DomainEvent =
  * - Agent/tool actions
  * - Background jobs
  *
+ * FIXED: Now subscribes ONCE and uses ref to call latest handler.
+ * This prevents memory leaks from resubscribing on every render.
+ *
  * Example:
  * ```tsx
  * useDomainEvents((event) => {
@@ -30,12 +33,24 @@ export type DomainEvent =
  * ```
  */
 export function useDomainEvents(handler: (event: DomainEvent) => void) {
+  // Store the latest handler in a ref
+  const handlerRef = useRef(handler)
+
+  // Update ref when handler changes (but don't resubscribe)
   useEffect(() => {
-    // Subscribe to domain events from main process
-    window.electron.onDomainEvent(handler)
+    handlerRef.current = handler
+  })
+
+  // Subscribe once on mount with a stable function
+  useEffect(() => {
+    const stableListener = (event: DomainEvent) => {
+      handlerRef.current(event)
+    }
+
+    window.electron.onDomainEvent(stableListener)
 
     return () => {
-      window.electron.offDomainEvent(handler)
+      window.electron.offDomainEvent(stableListener)
     }
-  }, [handler])
+  }, []) // Empty dependency array - subscribe only once
 }

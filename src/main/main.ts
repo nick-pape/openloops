@@ -10,10 +10,9 @@ import { jobManager } from './workers/job-manager'
 import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
 import { screenshotHandler } from './screenshot/screenshot-handler'
-import { AppEvents, broadcastEvent } from './events'
 import { ProviderFactory } from './ai/providers'
 import { domainEvents } from './events/emitter'
-import { projectCommands, captureCommands } from './domain/commands'
+import { projectCommands, captureCommands, taskCommands, summaryCommands } from './domain/commands'
 import { allTools } from './mcp/tools/index'
 import { createMCPServer } from './mcp/server'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -323,22 +322,15 @@ function setupIPC() {
   })
 
   ipcMain.handle('projects:create', async (_, name: string) => {
-    // Use domain command (emits event automatically)
-    const project = await projectCommands.createProject({ name })
-    // Keep old broadcast for backwards compatibility (will remove later)
-    broadcastEvent(AppEvents.projectCreated(), project)
-    return project
+    return projectCommands.createProject({ name })
   })
 
   ipcMain.handle('projects:update', async (_, id: string, name: string) => {
-    const project = await repository.updateProject(id, name)
-    broadcastEvent(AppEvents.projectUpdated(), project)
-    return project
+    return projectCommands.updateProject(id, name)
   })
 
   ipcMain.handle('projects:delete', async (_, id: string) => {
-    await repository.deleteProject(id)
-    broadcastEvent(AppEvents.projectDeleted(), { id })
+    await projectCommands.deleteProject(id)
   })
 
   // MCP Tool Test Handler (for Phase 2 testing)
@@ -371,30 +363,19 @@ function setupIPC() {
   })
 
   ipcMain.handle('captures:create', async (_, input: any) => {
-    const capture = await repository.createCapture(input)
-    broadcastEvent(AppEvents.captureCreated(capture.projectId), capture)
-    return capture
+    return captureCommands.createCapture(input)
   })
 
   ipcMain.handle('captures:toggleOpenLoop', async (_, captureId: string) => {
-    await repository.toggleCaptureOpenLoop(captureId)
-    const capture = await repository.getCapture(captureId)
-    if (capture) {
-      broadcastEvent(AppEvents.captureUpdated(capture.projectId), capture)
-    }
+    await captureCommands.toggleCaptureOpenLoop(captureId)
   })
 
   ipcMain.handle('captures:update', async (_, id: string, title: string, bodyText: string) => {
-    const capture = await repository.updateCapture(id, title, bodyText)
-    broadcastEvent(AppEvents.captureUpdated(capture.projectId), capture)
-    return capture
+    return captureCommands.updateCapture(id, title, bodyText)
   })
 
   ipcMain.handle('captures:delete', async (_, id: string) => {
-    const capture = await repository.getCapture(id)
-    const projectId = capture?.projectId || null
-    await repository.deleteCapture(id)
-    broadcastEvent(AppEvents.captureDeleted(projectId), { id })
+    await captureCommands.deleteCapture(id)
   })
 
   ipcMain.handle('captures:getTranscription', async (_, captureId: string) => {
@@ -803,22 +784,15 @@ Keep it concise and actionable.`
   })
 
   ipcMain.handle('tasks:create', async (_, input: any) => {
-    const task = await repository.createTask(input)
-    broadcastEvent(AppEvents.taskCreated(task.projectId), task)
-    return task
+    return taskCommands.createTask(input)
   })
 
   ipcMain.handle('tasks:update', async (_, id: string, input: any) => {
-    const task = await repository.updateTask(id, input)
-    broadcastEvent(AppEvents.taskUpdated(task.projectId), task)
-    return task
+    return taskCommands.updateTask(id, input)
   })
 
   ipcMain.handle('tasks:delete', async (_, id: string) => {
-    const task = await repository.getTask(id)
-    const projectId = task?.projectId || null
-    await repository.deleteTask(id)
-    broadcastEvent(AppEvents.taskDeleted(projectId), { id })
+    await taskCommands.deleteTask(id)
   })
 
   // Work Mode
@@ -898,10 +872,7 @@ Keep it concise and actionable.`
       throw new Error('Cannot create text capture: no project or task context')
     }
 
-    const capture = await repository.createCapture(captureInput)
-
-    // Broadcast capture created event
-    broadcastEvent(AppEvents.captureCreated(capture.projectId), capture)
+    const capture = await captureCommands.createCapture(captureInput)
 
     // Enqueue AI title generation job
     const jobId = await jobManager.enqueueTextTitleGeneration(capture.id, text)

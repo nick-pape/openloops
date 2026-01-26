@@ -51,6 +51,22 @@ function App() {
     }
   })
 
+  // Dev mode: Periodically log listener counts to detect memory leaks
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && !isWorkModeWindow && !isTextCaptureWindow) {
+      const interval = setInterval(() => {
+        const counts = window.electron.debug.getListenerCounts()
+        const totalListeners = Object.values(counts).reduce((sum, count) => sum + count, 0)
+
+        if (totalListeners > 0) {
+          console.log('[Listener Debug] Current listener counts:', counts, '| Total:', totalListeners)
+        }
+      }, 10000) // Log every 10 seconds in dev mode
+
+      return () => clearInterval(interval)
+    }
+  }, [isWorkModeWindow, isTextCaptureWindow])
+
   const handleCreateProject = async (name: string) => {
     const project = await window.electron.projects.create(name)
     setProjects([project, ...projects])
