@@ -1,4 +1,4 @@
-import { ChatMessage } from '../../types'
+import { ChatMessage, ToolCall } from '../../types'
 
 /**
  * ElectronChatRuntime - Custom runtime adapter for assistant-ui
@@ -6,7 +6,7 @@ import { ChatMessage } from '../../types'
  * This runtime manages chat state and communicates with the Electron main process
  * via IPC. It provides a simple interface for assistant-ui components.
  *
- * Supports streaming responses via AI SDK.
+ * Supports streaming responses via AI SDK and MCP tool calls.
  */
 export class ElectronChatRuntime {
   private projectId: string
@@ -15,9 +15,13 @@ export class ElectronChatRuntime {
   private isLoading: boolean = false
   private currentStreamId: string | null = null
   private streamingMessageIndex: number = -1
+  private activeToolCalls: Map<string, ToolCall> = new Map()
   private cleanupStarted: (() => void) | null = null
   private cleanupDelta: (() => void) | null = null
   private cleanupDone: (() => void) | null = null
+  private cleanupToolCall: (() => void) | null = null
+  private cleanupToolResult: (() => void) | null = null
+  private cleanupError: (() => void) | null = null
 
   constructor(projectId: string) {
     this.projectId = projectId
@@ -38,11 +42,9 @@ export class ElectronChatRuntime {
 
     // Listen for streaming deltas
     this.cleanupDelta = window.electron.chat.onDelta((data) => {
-      console.log('[ElectronChatRuntime] Received delta:', data.streamId, 'current:', this.currentStreamId, 'delta length:', data.delta?.length)
       if (data.streamId === this.currentStreamId && this.streamingMessageIndex >= 0) {
         // Append delta to the current streaming message
         this.messages[this.streamingMessageIndex].content += data.delta
-        console.log('[ElectronChatRuntime] Updated message, new length:', this.messages[this.streamingMessageIndex].content.length)
         this.notifySubscribers()
       }
     })
@@ -51,10 +53,80 @@ export class ElectronChatRuntime {
     this.cleanupDone = window.electron.chat.onDone((data) => {
       console.log('[ElectronChatRuntime] Received done:', data.streamId)
       if (data.streamId === this.currentStreamId) {
+        this.activeToolCalls.clear()
         this.isLoading = false
         this.currentStreamId = null
         this.streamingMessageIndex = -1
         this.notifySubscribers()
+      }
+    })
+
+    // Listen for tool calls (agent mode)
+    this.cleanupToolCall = window.electron.chat.onToolCall((data: any) => {
+      if (data.streamId === this.currentStreamId) {
+        console.log('[ElectronChatRuntime] Tool call:', data.toolName, 'status:', data.status)
+
+        // Track tool call state
+        const toolCall: ToolCall = {
+          toolCallId: data.toolCallId,
+          toolName: data.toolName,
+          status: data.status as 'started' | 'executing' | 'completed',
+          args: data.input || data.args // Support both old and new format
+        }
+        this.activeToolCalls.set(data.toolCallId, toolCall)
+
+        // Add tool call to the assistant message
+        if (this.streamingMessageIndex >= 0) {
+          const message = this.messages[this.streamingMessageIndex]
+          if (!message.toolCalls) {
+            message.toolCalls = []
+          }
+          // Check if this tool call already exists
+          const existingIndex = message.toolCalls.findIndex(tc => tc.toolCallId === data.toolCallId)
+          if (existingIndex >= 0) {
+            message.toolCalls[existingIndex] = toolCall
+          } else {
+            message.toolCalls.push(toolCall)
+          }
+          this.notifySubscribers()
+        }
+      }
+    })
+
+    // Listen for tool results (agent mode)
+    this.cleanupToolResult = window.electron.chat.onToolResult((data: any) => {
+      if (data.streamId === this.currentStreamId) {
+        console.log('[ElectronChatRuntime] Tool result:', data.toolName)
+
+        // Update tool call state
+        const toolCall = this.activeToolCalls.get(data.toolCallId)
+        if (toolCall) {
+          toolCall.status = 'completed'
+          toolCall.result = data.output || data.result // Support both old and new format
+
+          // Update in message's toolCalls array
+          if (this.streamingMessageIndex >= 0) {
+            const message = this.messages[this.streamingMessageIndex]
+            if (message.toolCalls) {
+              const existingIndex = message.toolCalls.findIndex(tc => tc.toolCallId === data.toolCallId)
+              if (existingIndex >= 0) {
+                message.toolCalls[existingIndex] = toolCall
+              }
+            }
+            this.notifySubscribers()
+          }
+        }
+      }
+    })
+
+    // Listen for errors
+    this.cleanupError = window.electron.chat.onError((data) => {
+      if (data.streamId === this.currentStreamId) {
+        console.error('[ElectronChatRuntime] Error:', data.error)
+        if (this.streamingMessageIndex >= 0) {
+          this.messages[this.streamingMessageIndex].content += `\n\n❌ Error: ${data.error}`
+          this.notifySubscribers()
+        }
       }
     })
   }
@@ -66,6 +138,16 @@ export class ElectronChatRuntime {
     if (this.cleanupStarted) this.cleanupStarted()
     if (this.cleanupDelta) this.cleanupDelta()
     if (this.cleanupDone) this.cleanupDone()
+    if (this.cleanupToolCall) this.cleanupToolCall()
+    if (this.cleanupToolResult) this.cleanupToolResult()
+    if (this.cleanupError) this.cleanupError()
+  }
+
+  /**
+   * Get active tool calls (for UI display)
+   */
+  getActiveToolCalls(): ToolCall[] {
+    return Array.from(this.activeToolCalls.values())
   }
 
   /**

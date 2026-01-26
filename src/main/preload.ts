@@ -154,6 +154,22 @@ const api = {
       const listener = (_event: any, data: { streamId: string }) => callback(data)
       ipcRenderer.on('chat:done', listener)
       return () => ipcRenderer.removeListener('chat:done', listener)
+    },
+    // Tool call events (for agent mode)
+    onToolCall: (callback: (data: { streamId: string; toolCallId: string; toolName: string; args?: unknown; status: string }) => void) => {
+      const listener = (_event: any, data: any) => callback(data)
+      ipcRenderer.on('chat:tool-call', listener)
+      return () => ipcRenderer.removeListener('chat:tool-call', listener)
+    },
+    onToolResult: (callback: (data: { streamId: string; toolCallId: string; toolName: string; result: unknown }) => void) => {
+      const listener = (_event: any, data: any) => callback(data)
+      ipcRenderer.on('chat:tool-result', listener)
+      return () => ipcRenderer.removeListener('chat:tool-result', listener)
+    },
+    onError: (callback: (data: { streamId: string; error: string }) => void) => {
+      const listener = (_event: any, data: any) => callback(data)
+      ipcRenderer.on('chat:error', listener)
+      return () => ipcRenderer.removeListener('chat:error', listener)
     }
   },
 

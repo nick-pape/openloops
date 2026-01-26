@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ElectronChatRuntime } from '../chat/ElectronChatRuntime'
 import { ChatMessage } from './ChatMessage'
 import './ChatPane.css'
@@ -10,42 +10,49 @@ interface ChatPaneProps {
 }
 
 export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
-  const runtime = useMemo(() => new ElectronChatRuntime(projectId), [projectId])
+  const runtimeRef = useRef<ElectronChatRuntime | null>(null)
   const [, setUpdateTrigger] = useState(0)
   const [inputValue, setInputValue] = useState('')
   const [showCommitMenu, setShowCommitMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Subscribe to runtime updates and cleanup on unmount
+  // Initialize runtime and cleanup on unmount or projectId change
   useEffect(() => {
+    // Create new runtime
+    const runtime = new ElectronChatRuntime(projectId)
+    runtimeRef.current = runtime
+
     const unsubscribe = runtime.subscribe(() => {
       setUpdateTrigger(prev => prev + 1)
     })
+
     return () => {
       unsubscribe()
       runtime.dispose()
+      runtimeRef.current = null
     }
-  }, [runtime])
+  }, [projectId])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [runtime.getMessageCount()])
+  }, [runtimeRef.current?.getMessageCount()])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputValue.trim() || runtime.getIsLoading()) return
+    if (!runtimeRef.current || !inputValue.trim() || runtimeRef.current.getIsLoading()) return
 
     const message = inputValue.trim()
     setInputValue('')
-    await runtime.sendMessage(message)
+    await runtimeRef.current.sendMessage(message)
   }
 
   const handleCommitAction = async (action: string) => {
     setShowCommitMenu(false)
+    if (!runtimeRef.current) return
 
     try {
-      const messages = runtime.getMessages()
+      const messages = runtimeRef.current.getMessages()
 
       switch (action) {
         case 'save':
@@ -84,8 +91,8 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
     )
   }
 
-  const messages = runtime.getMessages()
-  const isLoading = runtime.getIsLoading()
+  const messages = runtimeRef.current?.getMessages() ?? []
+  const isLoading = runtimeRef.current?.getIsLoading() ?? false
 
   return (
     <div className="chat-pane expanded">
@@ -114,7 +121,7 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
               </div>
             )}
           </div>
-          <button className="clear-btn" onClick={() => runtime.clearMessages()} disabled={messages.length === 0}>
+          <button className="clear-btn" onClick={() => runtimeRef.current?.clearMessages()} disabled={messages.length === 0}>
             🗑️
           </button>
           <button className="close-btn" onClick={onToggle}>
@@ -139,7 +146,7 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
           <div className="chat-loading-indicator">
             <button
               className="stop-generation-btn"
-              onClick={() => runtime.stopGeneration()}
+              onClick={() => runtimeRef.current?.stopGeneration()}
               title="Stop generating"
             >
               ⏹ Stop

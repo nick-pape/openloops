@@ -19,10 +19,20 @@ export interface Capture {
   // CONSTRAINT: Exactly one of projectId or linkedTaskId must be set
 }
 
+export interface ToolCall {
+  toolCallId: string
+  toolName: string
+  status: 'started' | 'executing' | 'completed' | 'error'
+  args?: unknown
+  result?: unknown
+  error?: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp?: string  // Optional for system messages
+  toolCalls?: ToolCall[]  // Tool calls made during this message
 }
 
 export interface CaptureMetadata {

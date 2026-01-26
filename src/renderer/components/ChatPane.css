@@ -213,6 +213,70 @@
 
 /* Message content styles now handled by MarkdownRenderer.css */
 
+/* Tool calls */
+.tool-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tool-call {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e1e4e8);
+  background: var(--bg-secondary, #f6f8fa);
+  font-size: 0.85rem;
+}
+
+.tool-call-started {
+  background: #FEF3C7;
+  border-color: #FCD34D;
+}
+
+.tool-call-executing {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+.tool-call-completed {
+  background: #D1FAE5;
+  border-color: #6EE7B7;
+}
+
+.tool-call-error {
+  background: #FEE2E2;
+  border-color: #FCA5A5;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tool-call-icon {
+  font-size: 1rem;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  flex: 1;
+}
+
+.tool-call-status {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  text-transform: capitalize;
+}
+
+.tool-call .tool-call-error {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #DC2626;
+}
+
 /* Typing indicator */
 .typing-indicator {
   display: flex;

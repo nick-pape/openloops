@@ -34,8 +34,7 @@ export function createAiSdkModel(config: {
   const openai = createOpenAI({
     baseURL,
     apiKey: config.apiKey || 'ollama', // Ollama doesn't need a real key
-    compatibility: 'compatible', // Use compatible mode for Ollama/other providers
   })
 
-  return openai(config.model)
+  return openai.chat(config.model)
 }

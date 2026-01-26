@@ -18,8 +18,10 @@ import { createMCPServer } from './mcp/server'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { startHTTPTransport, stopHTTPTransport, isHTTPTransportRunning } from './mcp/http-transport'
 import { initLogger, closeLogger, logger } from './logger'
-import { streamText, CoreMessage } from 'ai'
+import { ModelMessage } from '@ai-sdk/provider-utils'
 import { createAiSdkModel } from './llm/aiSdkClient'
+import { runAgentStream } from './ai/agent/openLoopsAgent'
+import { closeMcpClient } from './ai/mcp/openLoopsMcpClient'
 
 // Track active chat streams for cancellation
 const activeChatStreams = new Map<string, AbortController>()
@@ -289,10 +291,11 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
   globalShortcut.unregisterAll()
   screenshotHandler.cleanup()
   jobManager.stop()
+  await closeMcpClient()
   closeDatabase()
   closeLogger()
 })
@@ -630,16 +633,16 @@ Keep it concise and actionable.`
     }
   })
 
-  // Chat - uses AI SDK with streaming
+  // Chat - uses AI SDK agent with MCP tools and streaming
   ipcMain.handle('chat:send', async (event, projectId: string, messages: any[], streamId: string) => {
-    console.log('[Chat] Starting streaming chat, project:', projectId, 'streamId:', streamId)
+    console.log('[Chat] Starting agent chat, project:', projectId, 'streamId:', streamId)
 
     try {
       // Get LLM config from settings
       const llmType = await repository.getSetting('llm_type') || 'disabled'
       const baseUrl = await repository.getSetting('llm_base_url') || 'https://api.openai.com/v1'
       const apiKey = await repository.getSetting('secret_llm_api_key') || ''
-      const model = await repository.getSetting('llm_model') || 'gpt-4o-mini'
+      const modelName = await repository.getSetting('llm_model') || 'gpt-4o-mini'
 
       // Check if LLM is disabled
       if (llmType === 'disabled') {
@@ -650,55 +653,32 @@ Keep it concise and actionable.`
         }
       }
 
-      // Get last 5 non-chat captures as context
+      // Gather project context for system prompt
+      const project = await repository.getProject(projectId)
       const allCaptures = await repository.getCapturesByProject(projectId)
-      const nonChatCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 5)
+      const recentCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 5)
+      const openTasks = await repository.getOpenTasks(projectId)
 
-      console.log('[Chat] Found', nonChatCaptures.length, 'non-chat captures for context')
+      // Build context string with project info
+      let contextInfo = `Project: "${project.name}" (ID: ${projectId})
+Created: ${project.createdAt.toLocaleDateString()}`
 
-      // Build context string
-      let contextStr = ''
-      if (nonChatCaptures.length > 0) {
-        contextStr = 'Recent project captures:\n\n'
-        for (const capture of nonChatCaptures) {
-          contextStr += `[${capture.type}] ${capture.title || 'Untitled'}\n`
-
-          if (capture.type === 'text' && capture.bodyText) {
-            contextStr += `${capture.bodyText.substring(0, 300)}${capture.bodyText.length > 300 ? '...' : ''}\n\n`
-          } else if (capture.type === 'audio') {
-            const transcription = await repository.getTranscriptionByCapture(capture.id)
-            if (transcription?.text) {
-              contextStr += `Transcription: ${transcription.text.substring(0, 300)}${transcription.text.length > 300 ? '...' : ''}\n\n`
-            } else {
-              contextStr += `(audio recording)\n\n`
-            }
-          } else if (capture.type === 'image') {
-            contextStr += `(image capture)\n\n`
-          }
-        }
+      if (recentCaptures.length > 0) {
+        contextInfo += `\nRecent captures: ${recentCaptures.map(c => c.title || 'Untitled').join(', ')}`
       }
 
-      // Build AI SDK messages format
-      const aiMessages: CoreMessage[] = []
-
-      // Add system message with context
-      if (contextStr) {
-        aiMessages.push({
-          role: 'system',
-          content: `You are a helpful assistant for this project. Here is some recent context:\n\n${contextStr}`
-        })
+      if (openTasks.length > 0) {
+        contextInfo += `\nOpen tasks: ${openTasks.length}`
       }
 
-      // Add conversation messages
-      for (const msg of messages) {
-        aiMessages.push({
-          role: msg.role as 'user' | 'assistant' | 'system',
-          content: msg.content
-        })
-      }
+      // Build conversation messages (without system - that goes in systemPrompt)
+      const aiMessages: ModelMessage[] = messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content
+      }))
 
       // Create AI SDK model
-      const modelClient = createAiSdkModel({ baseUrl, model, apiKey })
+      const model = createAiSdkModel({ baseUrl, model: modelName, apiKey })
 
       // Create abort controller for cancellation
       const abortController = new AbortController()
@@ -707,30 +687,89 @@ Keep it concise and actionable.`
       // Get the sender's webContents to send streaming updates
       const webContents = event.sender
 
-      // Start streaming
-      console.log('[Chat] Starting AI SDK stream...')
-      console.log('[Chat] Model:', model, 'BaseURL:', baseUrl)
-      let fullText = ''
-      let chunkCount = 0
+      // Build system prompt with project context
+      const systemPrompt = `You are an assistant for Open Loops.
 
-      const result = streamText({
-        model: modelClient,
-        messages: aiMessages,
-        temperature: 0.7,
-        maxTokens: 2000,
-        abortSignal: abortController.signal
-      })
+${contextInfo}
+
+Rules:
+- Keep responses SHORT (1-3 sentences). Be concise.
+- Use tools when needed to answer questions or perform actions. Don't be overly cautious.
+- When asked to create/add, use the current project ID above. Don't create new projects.
+- If you don't have info to answer a question, use a tool to find it.`
+
+      // Start agent stream
+      console.log('[Chat] Starting agent stream with tools...')
+      console.log('[Chat] Model:', modelName, 'BaseURL:', baseUrl)
 
       // Notify renderer that streaming has started
       webContents.send('chat:started', { streamId })
-      console.log('[Chat] Sent chat:started event')
 
-      // Stream deltas to renderer
-      for await (const textPart of result.textStream) {
-        chunkCount++
-        fullText += textPart
-        console.log(`[Chat] Chunk ${chunkCount}: "${textPart.substring(0, 50)}${textPart.length > 50 ? '...' : ''}" (${textPart.length} chars)`)
-        webContents.send('chat:delta', { streamId, delta: textPart })
+      let fullText = ''
+      let eventCount = 0
+
+      // Run agent and stream events to renderer
+      for await (const agentEvent of runAgentStream(
+        { model, maxSteps: 10, temperature: 0.7, maxOutputTokens: 4000 },
+        { messages: aiMessages, systemPrompt, abortSignal: abortController.signal }
+      )) {
+        eventCount++
+
+        switch (agentEvent.type) {
+          case 'text-delta':
+            fullText += agentEvent.delta
+            webContents.send('chat:delta', { streamId, delta: agentEvent.delta })
+            break
+
+          case 'tool-input-start':
+            console.log(`[Chat] Tool input starting: ${agentEvent.toolName}`)
+            webContents.send('chat:tool-call', {
+              streamId,
+              toolCallId: agentEvent.toolCallId,
+              toolName: agentEvent.toolName,
+              status: 'started'
+            })
+            break
+
+          case 'tool-input-delta':
+            // Tool input is streaming (could show args as they arrive)
+            console.log(`[Chat] Tool input delta for ${agentEvent.toolCallId}`)
+            break
+
+          case 'tool-call-complete':
+            console.log(`[Chat] Tool call complete: ${agentEvent.toolName}`)
+            webContents.send('chat:tool-call', {
+              streamId,
+              toolCallId: agentEvent.toolCallId,
+              toolName: agentEvent.toolName,
+              input: agentEvent.input,
+              status: 'executing'
+            })
+            break
+
+          case 'tool-result':
+            console.log(`[Chat] Tool result: ${agentEvent.toolName}`)
+            webContents.send('chat:tool-result', {
+              streamId,
+              toolCallId: agentEvent.toolCallId,
+              toolName: agentEvent.toolName,
+              output: agentEvent.output
+            })
+            break
+
+          case 'step-finish':
+            console.log(`[Chat] Step ${agentEvent.stepNumber} finished: ${agentEvent.finishReason}`)
+            break
+
+          case 'error':
+            console.error(`[Chat] Agent error: ${agentEvent.error}`)
+            webContents.send('chat:error', { streamId, error: agentEvent.error })
+            break
+
+          case 'finish':
+            console.log(`[Chat] Agent finished: ${agentEvent.finishReason}, steps: ${agentEvent.totalSteps}`)
+            break
+        }
       }
 
       // Clean up
@@ -739,7 +778,7 @@ Keep it concise and actionable.`
       // Send completion signal
       webContents.send('chat:done', { streamId })
 
-      console.log('[Chat] Stream complete, total chunks:', chunkCount, 'total length:', fullText.length)
+      console.log('[Chat] Agent complete, events:', eventCount, 'text length:', fullText.length)
 
       return {
         role: 'assistant',
