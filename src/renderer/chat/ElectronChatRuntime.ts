@@ -15,11 +15,13 @@ export class ElectronChatRuntime {
   private isLoading: boolean = false
   private currentStreamId: string | null = null
   private streamingMessageIndex: number = -1
+  private cleanupStarted: (() => void) | null = null
   private cleanupDelta: (() => void) | null = null
   private cleanupDone: (() => void) | null = null
 
   constructor(projectId: string) {
     this.projectId = projectId
+    console.log('[ElectronChatRuntime] Constructor called, projectId:', projectId)
     this.setupStreamingListeners()
   }
 
@@ -27,17 +29,27 @@ export class ElectronChatRuntime {
    * Set up listeners for streaming events
    */
   private setupStreamingListeners() {
+    console.log('[ElectronChatRuntime] Setting up streaming listeners')
+
+    // Listen for stream start
+    this.cleanupStarted = window.electron.chat.onStarted((data) => {
+      console.log('[ElectronChatRuntime] Received started:', data.streamId, 'current:', this.currentStreamId)
+    })
+
     // Listen for streaming deltas
     this.cleanupDelta = window.electron.chat.onDelta((data) => {
+      console.log('[ElectronChatRuntime] Received delta:', data.streamId, 'current:', this.currentStreamId, 'delta length:', data.delta?.length)
       if (data.streamId === this.currentStreamId && this.streamingMessageIndex >= 0) {
         // Append delta to the current streaming message
         this.messages[this.streamingMessageIndex].content += data.delta
+        console.log('[ElectronChatRuntime] Updated message, new length:', this.messages[this.streamingMessageIndex].content.length)
         this.notifySubscribers()
       }
     })
 
     // Listen for stream completion
     this.cleanupDone = window.electron.chat.onDone((data) => {
+      console.log('[ElectronChatRuntime] Received done:', data.streamId)
       if (data.streamId === this.currentStreamId) {
         this.isLoading = false
         this.currentStreamId = null
@@ -51,6 +63,7 @@ export class ElectronChatRuntime {
    * Cleanup listeners when runtime is disposed
    */
   dispose() {
+    if (this.cleanupStarted) this.cleanupStarted()
     if (this.cleanupDelta) this.cleanupDelta()
     if (this.cleanupDone) this.cleanupDone()
   }
@@ -74,8 +87,10 @@ export class ElectronChatRuntime {
    */
   subscribe(callback: () => void): () => void {
     this.subscribers.add(callback)
+    console.log('[ElectronChatRuntime] Subscriber added, total:', this.subscribers.size)
     return () => {
       this.subscribers.delete(callback)
+      console.log('[ElectronChatRuntime] Subscriber removed, total:', this.subscribers.size)
     }
   }
 
@@ -83,6 +98,7 @@ export class ElectronChatRuntime {
    * Notify all subscribers of state change
    */
   private notifySubscribers() {
+    console.log('[ElectronChatRuntime] notifySubscribers called, subscriber count:', this.subscribers.size)
     this.subscribers.forEach(cb => cb())
   }
 

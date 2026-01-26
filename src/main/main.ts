@@ -709,7 +709,9 @@ Keep it concise and actionable.`
 
       // Start streaming
       console.log('[Chat] Starting AI SDK stream...')
+      console.log('[Chat] Model:', model, 'BaseURL:', baseUrl)
       let fullText = ''
+      let chunkCount = 0
 
       const result = streamText({
         model: modelClient,
@@ -719,9 +721,15 @@ Keep it concise and actionable.`
         abortSignal: abortController.signal
       })
 
+      // Notify renderer that streaming has started
+      webContents.send('chat:started', { streamId })
+      console.log('[Chat] Sent chat:started event')
+
       // Stream deltas to renderer
       for await (const textPart of result.textStream) {
+        chunkCount++
         fullText += textPart
+        console.log(`[Chat] Chunk ${chunkCount}: "${textPart.substring(0, 50)}${textPart.length > 50 ? '...' : ''}" (${textPart.length} chars)`)
         webContents.send('chat:delta', { streamId, delta: textPart })
       }
 
@@ -731,7 +739,7 @@ Keep it concise and actionable.`
       // Send completion signal
       webContents.send('chat:done', { streamId })
 
-      console.log('[Chat] Stream complete, total length:', fullText.length)
+      console.log('[Chat] Stream complete, total chunks:', chunkCount, 'total length:', fullText.length)
 
       return {
         role: 'assistant',

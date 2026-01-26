@@ -140,6 +140,11 @@ const api = {
     extractDecisions: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractDecisions', projectId, messages),
     updateSummary: (projectId: string) => ipcRenderer.invoke('chat:updateSummary', projectId),
     // Streaming events
+    onStarted: (callback: (data: { streamId: string }) => void) => {
+      const listener = (_event: any, data: { streamId: string }) => callback(data)
+      ipcRenderer.on('chat:started', listener)
+      return () => ipcRenderer.removeListener('chat:started', listener)
+    },
     onDelta: (callback: (data: { streamId: string; delta: string }) => void) => {
       const listener = (_event: any, data: { streamId: string; delta: string }) => callback(data)
       ipcRenderer.on('chat:delta', listener)
