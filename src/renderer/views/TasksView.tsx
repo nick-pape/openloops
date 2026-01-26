@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Task, Project } from '../../types'
+import { useDomainEvents } from '../hooks/useDomainEvents'
 import './TasksView.css'
 
 export function TasksView() {
@@ -23,6 +24,14 @@ export function TasksView() {
   useEffect(() => {
     loadData()
   }, [filterStatus])
+
+  // Listen for domain events to update UI when external agents (MCP) make changes
+  useDomainEvents((event) => {
+    if (event.type === 'task.created' || event.type === 'task.updated' || event.type === 'task.deleted') {
+      console.log('[TasksView] Domain event:', event.type, '- reloading tasks')
+      loadData()
+    }
+  })
 
   const loadData = async () => {
     setLoading(true)

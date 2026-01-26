@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Project, Capture, ProjectSummary, Transcription, DesktopSource, Task, ChatMessage as ChatMessageType } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
+import { useDomainEvents } from '../hooks/useDomainEvents'
 import { ChatMessage } from '../components/ChatMessage'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import './ProjectView.css'
@@ -35,6 +36,9 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [taskEstimate, setTaskEstimate] = useState(30)
   const [taskPriority, setTaskPriority] = useState(3)
   const [taskNotes, setTaskNotes] = useState('')
+
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
@@ -140,6 +144,32 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       window.electron.offTaskDeleted(projectId, handleTaskEvent)
     }
   }, [projectId, handleTaskEvent])
+
+  // Listen for domain events (from external MCP calls)
+  useDomainEvents((event) => {
+    if (event.type === 'capture.created' && event.projectId === projectId) {
+      console.log('[ProjectView] Domain event: capture created, reloading captures')
+      loadCaptures()
+    } else if (event.type === 'capture.updated' && event.captureId) {
+      console.log('[ProjectView] Domain event: capture updated, reloading captures')
+      loadCaptures()
+    } else if (event.type === 'capture.deleted' && event.captureId) {
+      console.log('[ProjectView] Domain event: capture deleted, reloading captures')
+      loadCaptures()
+    } else if (event.type === 'task.created' && (!event.projectId || event.projectId === projectId)) {
+      console.log('[ProjectView] Domain event: task created, reloading tasks')
+      loadTasks()
+    } else if (event.type === 'task.updated') {
+      console.log('[ProjectView] Domain event: task updated, reloading tasks')
+      loadTasks()
+    } else if (event.type === 'task.deleted') {
+      console.log('[ProjectView] Domain event: task deleted, reloading tasks')
+      loadTasks()
+    } else if (event.type === 'summary.generated' && event.projectId === projectId) {
+      console.log('[ProjectView] Domain event: summary generated, reloading summary')
+      loadSummary()
+    }
+  })
 
   // Listen for global hotkey triggers
   // Store references to latest handlers
@@ -381,6 +411,14 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       }
       return newSet
     })
+  }
+
+  // Project delete handler
+  const handleConfirmDelete = () => {
+    if (project) {
+      onDeleteProject(project.id)
+      setShowDeleteConfirm(false)
+    }
   }
 
   // Task handlers
@@ -721,7 +759,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     >
       <div className="project-header">
         <h1>{project.name}</h1>
-        <button className="danger" onClick={() => onDeleteProject(project.id)}>
+        <button className="danger" onClick={() => setShowDeleteConfirm(true)}>
           Delete Project
         </button>
       </div>
@@ -994,6 +1032,28 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                 disabled={!taskTitle.trim()}
               >
                 {editingTask ? 'Save' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && project && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Delete Project?</h2>
+            <p>
+              Are you sure you want to delete <strong>{project.name}</strong>?
+            </p>
+            <p className="warning-text">
+              This will permanently delete all captures, tasks, and summaries for this project. This action cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button className="secondary" onClick={() => setShowDeleteConfirm(false)}>
+                Cancel
+              </button>
+              <button className="danger" onClick={handleConfirmDelete}>
+                Delete Project
               </button>
             </div>
           </div>

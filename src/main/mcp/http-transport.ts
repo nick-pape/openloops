@@ -1,12 +1,14 @@
 import express from 'express'
 import cors from 'cors'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { createMCPServer } from './server.js'
+import { logger } from '../logger'
 
 /**
  * MCP HTTP Transport
  *
- * Exposes MCP server over HTTP for external agents (Claude Desktop, Goose, etc.)
- * Uses JSON-RPC 2.0 protocol over HTTP POST.
+ * Exposes MCP server over HTTP for external agents (Claude Code, Claude Desktop, Goose, etc.)
+ * Uses the official MCP SDK StreamableHTTPServerTransport.
  */
 
 export interface HTTPTransportConfig {
@@ -17,19 +19,20 @@ export interface HTTPTransportConfig {
 
 let httpServer: any = null
 let expressApp: any = null
+let transport: StreamableHTTPServerTransport | null = null
 
 export async function startHTTPTransport(config: HTTPTransportConfig): Promise<void> {
   if (!config.enabled) {
-    console.log('[MCP HTTP] HTTP transport is disabled in settings')
+    logger.info('[MCP HTTP] HTTP transport is disabled in settings')
     return
   }
 
   if (httpServer) {
-    console.log('[MCP HTTP] HTTP transport already running')
+    logger.info('[MCP HTTP] HTTP transport already running')
     return
   }
 
-  console.log('[MCP HTTP] Starting HTTP transport on port', config.port)
+  logger.info('[MCP HTTP] Starting HTTP transport on port', config.port)
 
   // Create Express app
   expressApp = express()
@@ -37,22 +40,28 @@ export async function startHTTPTransport(config: HTTPTransportConfig): Promise<v
   // Enable CORS for all origins (can be restricted in production)
   expressApp.use(cors({
     origin: '*',
-    methods: ['POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   }))
 
   expressApp.use(express.json())
 
-  // Create MCP server instance
+  // Create MCP server and transport using SDK
   const mcpServer = createMCPServer()
+  transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined // Stateless mode - no session management needed
+  })
+
+  // Connect server to transport
+  await mcpServer.connect(transport)
 
   // Health check endpoint
   expressApp.get('/health', (_req: any, res: any) => {
     res.json({ status: 'ok', transport: 'http' })
   })
 
-  // MCP endpoint - handles JSON-RPC requests
-  expressApp.post('/mcp', async (req: any, res: any) => {
+  // MCP endpoint - handles all HTTP requests (GET for SSE, POST for JSON-RPC)
+  expressApp.all('/mcp', async (req: any, res: any) => {
     try {
       // Optional: Check auth token
       if (config.authToken) {
@@ -60,65 +69,45 @@ export async function startHTTPTransport(config: HTTPTransportConfig): Promise<v
         const token = authHeader?.replace('Bearer ', '')
 
         if (token !== config.authToken) {
-          console.warn('[MCP HTTP] Unauthorized request - invalid token')
-          res.status(401).json({
+          logger.warn('[MCP HTTP] Unauthorized request - invalid token')
+          return res.status(401).json({
             jsonrpc: '2.0',
             error: {
               code: -32000,
               message: 'Unauthorized: Invalid auth token'
             },
-            id: req.body.id || null
+            id: req.body?.id || null
           })
-          return
         }
       }
 
-      const request = req.body
-      console.log('[MCP HTTP] Received request:', request.method)
-
-      // Handle MCP request using the server's request handlers
-      let response: any
-
-      if (request.method === 'tools/list') {
-        const listHandler = (mcpServer as any)._requestHandlers.get('tools/list')
-        response = await listHandler(request)
-      } else if (request.method === 'tools/call') {
-        const callHandler = (mcpServer as any)._requestHandlers.get('tools/call')
-        response = await callHandler(request)
-      } else {
-        throw new Error(`Unknown method: ${request.method}`)
-      }
-
-      // Send JSON-RPC response
-      res.json({
-        jsonrpc: '2.0',
-        result: response,
-        id: request.id
-      })
-
-      console.log('[MCP HTTP] Request completed:', request.method)
+      // Let the SDK transport handle the request
+      logger.info('[MCP HTTP] Received request:', req.method, req.body?.method || 'SSE')
+      await transport!.handleRequest(req, res, req.body)
     } catch (error: any) {
-      console.error('[MCP HTTP] Request error:', error.message)
-      res.status(500).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32603,
-          message: error.message || 'Internal error',
-          data: error.stack
-        },
-        id: req.body.id || null
-      })
+      logger.error('[MCP HTTP] Request error:', error.message)
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: error.message || 'Internal error'
+          },
+          id: req.body?.id || null
+        })
+      }
     }
   })
 
   // Start HTTP server
   return new Promise((resolve, reject) => {
     httpServer = expressApp.listen(config.port, () => {
-      console.log(`[MCP HTTP] HTTP transport started on http://localhost:${config.port}/mcp`)
+      logger.info(`[MCP HTTP] HTTP transport started on http://localhost:${config.port}/mcp`)
       resolve()
     }).on('error', (err: any) => {
-      console.error('[MCP HTTP] Failed to start HTTP server:', err.message)
+      logger.error('[MCP HTTP] Failed to start HTTP server:', err.message)
       httpServer = null
+      transport = null
       reject(err)
     })
   })
@@ -126,15 +115,21 @@ export async function startHTTPTransport(config: HTTPTransportConfig): Promise<v
 
 export async function stopHTTPTransport(): Promise<void> {
   if (!httpServer) {
-    console.log('[MCP HTTP] HTTP transport not running')
+    logger.info('[MCP HTTP] HTTP transport not running')
     return
   }
 
-  console.log('[MCP HTTP] Stopping HTTP transport...')
+  logger.info('[MCP HTTP] Stopping HTTP transport...')
+
+  // Close transport first
+  if (transport) {
+    await transport.close()
+    transport = null
+  }
 
   return new Promise((resolve) => {
     httpServer.close(() => {
-      console.log('[MCP HTTP] HTTP transport stopped')
+      logger.info('[MCP HTTP] HTTP transport stopped')
       httpServer = null
       expressApp = null
       resolve()

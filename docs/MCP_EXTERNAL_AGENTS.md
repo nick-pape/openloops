@@ -2,7 +2,16 @@
 
 **Phase 4: MCP HTTP Transport**
 
-This guide shows you how to connect external AI agents (Claude Desktop, Goose, etc.) to your Open Loops MCP server.
+This guide shows you how to connect external AI agents (Claude Code, Claude Desktop, Goose, etc.) to your Open Loops MCP server.
+
+## Quick Start
+
+**For Claude Code CLI:**
+```bash
+claude mcp add --transport http open-loops http://localhost:3000/mcp
+```
+
+**For Claude Desktop:** See [manual configuration](#connecting-claude-desktop) section below.
 
 ## Overview
 
@@ -32,6 +41,53 @@ All operations use the same domain commands as the internal UI, so changes made 
 7. Click **"Start"** button to start the HTTP transport
 
 You should see: ✅ **Running on port 3000**
+
+---
+
+## Connecting Claude Code (CLI)
+
+### Quick Setup
+
+**Basic connection (no auth):**
+```bash
+claude mcp add --transport http open-loops http://localhost:3000/mcp
+```
+
+**With auth token:**
+```bash
+claude mcp add --transport http open-loops http://localhost:3000/mcp --header "Authorization: Bearer YOUR_AUTH_TOKEN"
+```
+
+### Verify Connection
+
+```bash
+# List all MCP servers
+claude mcp list
+
+# Get details about the open-loops server
+claude mcp get open-loops
+```
+
+### Usage
+
+Once connected, Claude Code will automatically discover the 12 Open Loops tools:
+- `projects_list`, `projects_get`, `projects_create`, `projects_get_summary`
+- `captures_search`, `captures_get`, `captures_create_text`, `captures_create_decision`
+- `tasks_list`, `tasks_get`, `tasks_create`, `tasks_update`
+
+**Example prompts:**
+```
+"Show me all my projects in Open Loops"
+"What's the latest summary for project XYZ?"
+"Create a new task: 'Review Phase 4 implementation' with priority 4"
+"Search for recent text captures in project ABC"
+```
+
+### Remove Server
+
+```bash
+claude mcp remove open-loops
+```
 
 ---
 

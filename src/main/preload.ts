@@ -225,6 +225,22 @@ const api = {
       stop: () => ipcRenderer.invoke('mcp:http:stop'),
       status: () => ipcRenderer.invoke('mcp:http:status')
     }
+  },
+
+  // App error events
+  onAppError: (callback: (error: { title: string; message: string; details?: string }) => void) => {
+    ipcRenderer.on('app:error', (_event, errorData) => callback(errorData))
+  },
+  offAppError: (callback: any) => {
+    ipcRenderer.removeListener('app:error', callback)
+  },
+
+  // Generic event listener (for future events)
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, callback)
+  },
+  removeListener: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback)
   }
 }
 

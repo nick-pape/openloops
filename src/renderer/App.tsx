@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { ChatPane } from './components/ChatPane'
+import { ErrorNotification } from './components/ErrorNotification'
 import { ProjectView } from './views/ProjectView'
 import { PlannerView } from './views/PlannerView'
 import { SettingsView } from './views/SettingsView'
@@ -10,6 +11,7 @@ import { HotkeysView } from './views/HotkeysView'
 import { WorkModeView } from './views/WorkModeView'
 import { TextCaptureView } from './views/TextCaptureView'
 import { JobsProvider } from './contexts/JobsContext'
+import { useDomainEvents } from './hooks/useDomainEvents'
 import { Project } from '../types'
 import './App.css'
 
@@ -42,6 +44,13 @@ function App() {
     setProjects(allProjects)
   }
 
+  // Listen for domain events to update UI when external agents (MCP) make changes
+  useDomainEvents((event) => {
+    if (event.type === 'project.created' || event.type === 'project.updated' || event.type === 'project.deleted') {
+      loadProjects()
+    }
+  })
+
   const handleCreateProject = async (name: string) => {
     const project = await window.electron.projects.create(name)
     setProjects([project, ...projects])
@@ -72,6 +81,7 @@ function App() {
   return (
     <JobsProvider>
       <div className={`app ${chatCollapsed ? 'chat-collapsed' : ''}`}>
+        <ErrorNotification />
         <Sidebar
           projects={projects}
           currentView={currentView}

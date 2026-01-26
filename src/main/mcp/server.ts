@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { zodToJsonSchema } from 'zod-to-json-schema'
+import { toJsonSchemaCompat } from '@modelcontextprotocol/sdk/server/zod-json-schema-compat.js'
 import { allTools } from './tools/index.js'
 
 /**
@@ -36,7 +36,7 @@ export function createMCPServer() {
       tools: allTools.map(({ definition }) => ({
         name: definition.name,
         description: definition.description,
-        inputSchema: zodToJsonSchema(definition.inputSchema as any)
+        inputSchema: toJsonSchemaCompat(definition.inputSchema as any)
       }))
     }
   })

@@ -2,6 +2,7 @@ import { Worker } from 'worker_threads'
 import path from 'path'
 import { app, BrowserWindow } from 'electron'
 import { repository } from '../db/repository'
+import { logger } from '../logger'
 
 export class JobManager {
   private worker: Worker | null = null
@@ -39,12 +40,12 @@ export class JobManager {
   }
 
   async enqueueTranscription(captureId: string, audioFilePath: string): Promise<string> {
-    console.log('[JobManager] Enqueueing transcription job for capture:', captureId)
+    logger.info('[JobManager] Enqueueing transcription job for capture:', captureId)
     const jobId = await repository.enqueueJob('transcription', {
       captureId,
       audioFilePath
     })
-    console.log('[JobManager] Transcription job enqueued with ID:', jobId)
+    logger.info('[JobManager] Transcription job enqueued with ID:', jobId)
 
     // Trigger immediate processing
     this.processPendingJobs()
@@ -53,13 +54,13 @@ export class JobManager {
   }
 
   async enqueueSummary(projectId: string, context: string, prompt: string): Promise<string> {
-    console.log('[JobManager] Enqueueing summary job for project:', projectId)
+    logger.info('[JobManager] Enqueueing summary job for project:', projectId)
     const jobId = await repository.enqueueJob('summary', {
       projectId,
       context,
       prompt
     })
-    console.log('[JobManager] Summary job enqueued with ID:', jobId)
+    logger.info('[JobManager] Summary job enqueued with ID:', jobId)
 
     // Trigger immediate processing
     this.processPendingJobs()
@@ -68,12 +69,12 @@ export class JobManager {
   }
 
   async enqueueImageDescription(captureId: string, imagePath: string): Promise<string> {
-    console.log('[JobManager] Enqueueing image-description job for capture:', captureId)
+    logger.info('[JobManager] Enqueueing image-description job for capture:', captureId)
     const jobId = await repository.enqueueJob('image-description', {
       captureId,
       imagePath
     })
-    console.log('[JobManager] Image-description job enqueued with ID:', jobId)
+    logger.info('[JobManager] Image-description job enqueued with ID:', jobId)
 
     // Trigger immediate processing
     this.processPendingJobs()
@@ -82,13 +83,13 @@ export class JobManager {
   }
 
   async enqueueTextTitleGeneration(captureId: string, bodyText: string, previousTitle?: string): Promise<string> {
-    console.log('[JobManager] Enqueueing text-title-generation job for capture:', captureId)
+    logger.info('[JobManager] Enqueueing text-title-generation job for capture:', captureId)
     const jobId = await repository.enqueueJob('text-title-generation', {
       captureId,
       bodyText,
       previousTitle
     })
-    console.log('[JobManager] Text-title-generation job enqueued with ID:', jobId)
+    logger.info('[JobManager] Text-title-generation job enqueued with ID:', jobId)
 
     // Trigger immediate processing
     this.processPendingJobs()
@@ -124,11 +125,11 @@ export class JobManager {
     const job = await repository.getNextPendingJob(type)
 
     if (!job) {
-      console.log(`[JobManager] No pending ${type} jobs`)
+      logger.info(`[JobManager] No pending ${type} jobs`)
       return
     }
 
-    console.log(`[JobManager] Processing ${type} job:`, job.id)
+    logger.info(`[JobManager] Processing ${type} job:`, job.id)
 
     // Get configuration from settings
     const config = await this.getConfig()
@@ -141,11 +142,11 @@ export class JobManager {
       this.worker = new Worker(workerPath)
 
       this.worker.on('message', async (message) => {
-        console.log('[JobManager] Job completed:', message.jobId, 'success:', message.success)
+        logger.info('[JobManager] Job completed:', message.jobId, 'success:', message.success)
         if (message.success) {
-          console.log('[JobManager] Result:', message.result?.substring(0, 100))
+          logger.info('[JobManager] Result:', message.result?.substring(0, 100))
         } else {
-          console.error('[JobManager] Job failed:', message.error)
+          logger.error('[JobManager] Job failed:', message.error)
         }
 
         // Fetch the updated job from database and emit event to renderer
@@ -153,7 +154,7 @@ export class JobManager {
           const updatedJob = await repository.getJob(message.jobId)
           if (updatedJob && this.mainWindow) {
             this.mainWindow.webContents.send('job:updated', updatedJob)
-            console.log('[JobManager] Emitted job:updated event for job:', message.jobId)
+            logger.info('[JobManager] Emitted job:updated event for job:', message.jobId)
 
             // Emit domain event for summary completion (Phase 3)
             if (message.success && updatedJob.type === 'summary') {
@@ -172,12 +173,12 @@ export class JobManager {
                   }
                 }
               } catch (error) {
-                console.error('[JobManager] Failed to emit summary domain event:', error)
+                logger.error('[JobManager] Failed to emit summary domain event:', error)
               }
             }
           }
         } catch (error) {
-          console.error('[JobManager] Failed to fetch and emit job update:', error)
+          logger.error('[JobManager] Failed to fetch and emit job update:', error)
         }
 
         // Process next job
@@ -185,7 +186,7 @@ export class JobManager {
       })
 
       this.worker.on('error', async (error) => {
-        console.error('[JobManager] Worker error:', error)
+        logger.error('[JobManager] Worker error:', error)
 
         // Mark any processing jobs as failed
         await this.markProcessingJobsAsFailed(error.message)
@@ -198,7 +199,7 @@ export class JobManager {
 
       this.worker.on('exit', async (code) => {
         if (code !== 0) {
-          console.error(`[JobManager] Worker stopped with exit code ${code}`)
+          logger.error(`[JobManager] Worker stopped with exit code ${code}`)
 
           // Mark any processing jobs as failed
           await this.markProcessingJobsAsFailed(`Worker crashed with exit code ${code}`)
@@ -229,7 +230,7 @@ export class JobManager {
     try {
       const processingJobs = await repository.getProcessingJobs()
       for (const job of processingJobs) {
-        console.log(`[JobManager] Marking processing job ${job.id} as failed due to worker crash`)
+        logger.info(`[JobManager] Marking processing job ${job.id} as failed due to worker crash`)
         await repository.updateJobStatus(job.id, 'error', undefined, errorMessage)
 
         // Emit event to renderer
@@ -241,7 +242,7 @@ export class JobManager {
         }
       }
     } catch (error) {
-      console.error('[JobManager] Failed to mark processing jobs as failed:', error)
+      logger.error('[JobManager] Failed to mark processing jobs as failed:', error)
     }
   }
 
@@ -260,7 +261,7 @@ export class JobManager {
     const llmBaseUrl = await repository.getSetting('llm_base_url') || 'https://api.openai.com/v1'
     const llmModel = await repository.getSetting('llm_model') || 'gpt-4o-mini'
 
-    console.log('[JobManager] Config retrieved:', {
+    logger.info('[JobManager] Config retrieved:', {
       transcriptionType,
       transcriptionApiKeyLength: transcriptionApiKey.length,
       llmType,

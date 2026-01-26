@@ -18,10 +18,45 @@ import { allTools } from './mcp/tools/index'
 import { createMCPServer } from './mcp/server'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { startHTTPTransport, stopHTTPTransport, isHTTPTransportRunning } from './mcp/http-transport'
+import { initLogger, closeLogger, logger } from './logger'
 
 let mainWindow: BrowserWindow | null = null
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+
+// Global error handlers - catch uncaught exceptions and show user-friendly errors
+process.on('uncaughtException', (error) => {
+  logger.error('[Uncaught Exception]', error)
+
+  // Show user-friendly error notification instead of crashing
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:error', {
+      title: 'An error occurred',
+      message: error.message,
+      details: error.stack
+    })
+  }
+
+  // Don't exit in dev mode to make debugging easier
+  if (!isDev) {
+    // Give time for the error to be logged and shown
+    setTimeout(() => {
+      app.quit()
+    }, 1000)
+  }
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('[Unhandled Rejection]', 'Promise:', promise, 'Reason:', reason)
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app:error', {
+      title: 'An error occurred',
+      message: String(reason),
+      details: reason instanceof Error ? reason.stack : undefined
+    })
+  }
+})
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -111,15 +146,20 @@ function createMenu() {
 }
 
 app.whenReady().then(async () => {
+  // Initialize file logger FIRST before anything else (before MCP redirects stdio)
+  initLogger()
+  logger.info('[App] Starting Open Loops...')
+
   initDatabase()
   await jobManager.start()
 
   // Start MCP stdio server (Phase 3)
-  console.log('[MCP] Starting MCP stdio server...')
+  // NOTE: This redirects stdout/stderr for JSON-RPC, so we must use logger.* instead of console.log
+  logger.info('[MCP] Starting MCP stdio server...')
   const mcpServer = createMCPServer()
   const transport = new StdioServerTransport()
   await mcpServer.connect(transport)
-  console.log('[MCP] MCP stdio server started - ready for tool calls')
+  logger.info('[MCP] MCP stdio server started - ready for tool calls')
 
   // Start MCP HTTP transport if enabled (Phase 4)
   try {
@@ -135,7 +175,7 @@ app.whenReady().then(async () => {
       })
     }
   } catch (error) {
-    console.error('[MCP HTTP] Failed to start HTTP transport:', error)
+    logger.error('[MCP HTTP] Failed to start HTTP transport:', error)
   }
 
   setupIPC()
@@ -240,6 +280,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     jobManager.stop()
     closeDatabase()
+    closeLogger()
     app.quit()
   }
 })
@@ -249,6 +290,7 @@ app.on('before-quit', () => {
   screenshotHandler.cleanup()
   jobManager.stop()
   closeDatabase()
+  closeLogger()
 })
 
 /**
