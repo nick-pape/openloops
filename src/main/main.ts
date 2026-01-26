@@ -631,8 +631,7 @@ Keep it concise and actionable.`
   })
 
   // Chat - uses AI SDK with streaming
-  ipcMain.handle('chat:send', async (event, projectId: string, messages: any[]) => {
-    const streamId = `${projectId}-${Date.now()}`
+  ipcMain.handle('chat:send', async (event, projectId: string, messages: any[], streamId: string) => {
     console.log('[Chat] Starting streaming chat, project:', projectId, 'streamId:', streamId)
 
     try {

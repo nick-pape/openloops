@@ -133,7 +133,7 @@ const api = {
 
   // Chat
   chat: {
-    send: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:send', projectId, messages),
+    send: (projectId: string, messages: any[], streamId: string) => ipcRenderer.invoke('chat:send', projectId, messages, streamId),
     cancel: (streamId: string) => ipcRenderer.invoke('chat:cancel', streamId),
     save: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:save', projectId, messages),
     extractTasks: (projectId: string, messages: any[]) => ipcRenderer.invoke('chat:extractTasks', projectId, messages),

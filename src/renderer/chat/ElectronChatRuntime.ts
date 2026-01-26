@@ -114,8 +114,10 @@ export class ElectronChatRuntime {
 
     try {
       // Send to backend - streaming deltas will update the message via events
-      const response = await window.electron.chat.send(this.projectId,
-        this.messages.slice(0, -1) // Don't send the empty assistant message
+      const response = await window.electron.chat.send(
+        this.projectId,
+        this.messages.slice(0, -1), // Don't send the empty assistant message
+        this.currentStreamId!
       )
 
       // Update final message content (in case we missed any deltas)
