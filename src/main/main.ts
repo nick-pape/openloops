@@ -1159,13 +1159,25 @@ Keep it concise and actionable.`
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      await response.json()
+      const data = await response.json()
       console.log('[Transcription Test] Response received')
 
-      return { success: true, message: 'Connection successful' }
+      // Parse models like LLM does
+      let models: string[] = []
+      if (data.data && Array.isArray(data.data)) {
+        // OpenAI format: { data: [{ id: "model-name" }] }
+        models = data.data.map((m: any) => m.id)
+      } else if (data.models && Array.isArray(data.models)) {
+        // Ollama format: { models: [{ name: "model-name" }] }
+        models = data.models.map((m: any) => m.name || m.model)
+      }
+
+      console.log('[Transcription Test] Found models:', models)
+      return { success: true, message: 'Connection successful', models }
     } catch (error: any) {
       console.error('[Transcription Test] Connection failed:', error.message)
       return { success: false, error: error.message }
     }
   })
 }
+

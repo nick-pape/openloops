@@ -11,7 +11,8 @@ export function SettingsView() {
   const [testingTranscription, setTestingTranscription] = useState(false)
   const [llmTestResult, setLLMTestResult] = useState<string>('')
   const [transcriptionTestResult, setTranscriptionTestResult] = useState<string>('')
-  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [availableLLMModels, setAvailableLLMModels] = useState<string[]>([])
+  const [availableTranscriptionModels, setAvailableTranscriptionModels] = useState<string[]>([])
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [mcpHttpStatus, setMcpHttpStatus] = useState<{ running: boolean; port: number } | null>(null)
   const [mcpHttpLoading, setMcpHttpLoading] = useState(false)
@@ -74,7 +75,7 @@ export function SettingsView() {
   const handleTestLLMConnection = async () => {
     setTestingLLM(true)
     setLLMTestResult('')
-    setAvailableModels([])
+    setAvailableLLMModels([])
     setShowModelDropdown(false)
 
     const baseUrl = settings.llm_base_url || 'https://api.openai.com/v1'
@@ -91,7 +92,7 @@ export function SettingsView() {
 
       if (result.success && result.models) {
         setLLMTestResult(`✅ Connected! Found ${result.models.length} models`)
-        setAvailableModels(result.models)
+        setAvailableLLMModels(result.models)
         setShowModelDropdown(true)
       } else {
         setLLMTestResult(`❌ Connection failed: ${result.error}`)
@@ -120,7 +121,12 @@ export function SettingsView() {
       const result = await window.electron.transcription.testConnection(baseUrl, apiKey)
 
       if (result.success) {
-        setTranscriptionTestResult(`✅ Connected! ${result.message}`)
+        if (result.models && result.models.length > 0) {
+          setAvailableTranscriptionModels(result.models)
+          setTranscriptionTestResult(`✅ Connected! Found ${result.models.length} models`)
+        } else {
+          setTranscriptionTestResult(`✅ Connected! ${result.message}`)
+        }
       } else {
         setTranscriptionTestResult(`❌ Connection failed: ${result.error}`)
       }
@@ -212,6 +218,30 @@ export function SettingsView() {
             </div>
           )}
         </div>
+        <div className="form-group">
+          <label>Model</label>
+          {availableTranscriptionModels.length > 0 ? (
+            <select
+              value={settings.transcription_model || 'whisper-1'}
+              onChange={(e) => handleSettingChange('transcription_model', e.target.value)}
+            >
+              <option value="">Select a model...</option>
+              {availableTranscriptionModels.map(model => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={settings.transcription_model || 'whisper-1'}
+              onChange={(e) => handleSettingChange('transcription_model', e.target.value)}
+              placeholder="whisper-1"
+            />
+          )}
+          <small className="help-text">
+            Test connection to populate model list from API
+          </small>
+        </div>
       </div>
 
       <div className="settings-section">
@@ -263,7 +293,7 @@ export function SettingsView() {
             </div>
             <div className="form-group">
               <label>Model</label>
-              {showModelDropdown && availableModels.length > 0 ? (
+              {showModelDropdown && availableLLMModels.length > 0 ? (
                 <div className="model-selector">
                   <select
                     value={settings.llm_model || ''}
@@ -273,7 +303,7 @@ export function SettingsView() {
                     }}
                   >
                     <option value="">Select a model...</option>
-                    {availableModels.map(model => (
+                    {availableLLMModels.map(model => (
                       <option key={model} value={model}>{model}</option>
                     ))}
                   </select>

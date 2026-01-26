@@ -275,6 +275,7 @@ export class JobManager {
     // Secrets are stored with 'secret_' prefix
     const transcriptionApiKey = await repository.getSetting('secret_transcription_api_key') || ''
     const transcriptionBaseUrl = await repository.getSetting('transcription_base_url') || 'https://api.openai.com/v1'
+    const transcriptionModel = await repository.getSetting('transcription_model') || 'whisper-1'
 
     const llmType = await repository.getSetting('llm_type') || 'disabled'
     // Secrets are stored with 'secret_' prefix
@@ -285,6 +286,7 @@ export class JobManager {
     logger.info('[JobManager] Config retrieved:', {
       transcriptionApiKeyLength: transcriptionApiKey.length,
       transcriptionBaseUrl,
+      transcriptionModel,
       llmType,
       llmApiKeyLength: llmApiKey.length,
       llmBaseUrl,
@@ -294,7 +296,8 @@ export class JobManager {
     return {
       transcription: {
         apiKey: transcriptionApiKey,
-        baseUrl: transcriptionBaseUrl
+        baseUrl: transcriptionBaseUrl,
+        model: transcriptionModel
       },
       llm: {
         type: llmType,

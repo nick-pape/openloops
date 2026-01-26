@@ -41,7 +41,8 @@ export class RemoteTranscriptionProvider implements TranscriptionProvider {
 
   constructor(
     private apiKey: string,
-    private baseUrl: string = 'https://api.openai.com/v1'
+    private baseUrl: string = 'https://api.openai.com/v1',
+    private model: string = 'whisper-1'
   ) {}
 
   async transcribe(audioFilePath: string): Promise<string> {
@@ -49,7 +50,7 @@ export class RemoteTranscriptionProvider implements TranscriptionProvider {
     const audioBuffer = fs.readFileSync(audioFilePath)
     const audioBlob = new Blob([audioBuffer])
     formData.append('file', audioBlob, path.basename(audioFilePath))
-    formData.append('model', 'whisper-1')
+    formData.append('model', this.model)
 
     const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
       method: 'POST',
@@ -355,11 +356,16 @@ export class ProviderFactory {
   createTranscriptionProvider(config: {
     apiKey: string
     baseUrl?: string
+    model?: string
   }): TranscriptionProvider {
     if (!config.apiKey) {
       throw new Error('API key required for remote transcription')
     }
-    return new RemoteTranscriptionProvider(config.apiKey, config.baseUrl)
+    return new RemoteTranscriptionProvider(
+      config.apiKey,
+      config.baseUrl || 'https://api.openai.com/v1',
+      config.model || 'whisper-1'
+    )
   }
 
   createLLMProvider(config: {
