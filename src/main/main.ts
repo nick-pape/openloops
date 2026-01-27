@@ -1220,11 +1220,34 @@ Keep it concise and actionable.`
     try {
       const https = await import('https')
       const http = await import('http')
+      const { URL } = await import('url')
 
-      const client = url.startsWith('https') ? https : http
+      const parsedUrl = new URL(url)
+      const client = parsedUrl.protocol === 'https:' ? https : http
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'identity',
+          'Connection': 'close'
+        }
+      }
 
       return new Promise<string>((resolve, reject) => {
-        const req = client.get(url, { timeout: 5000 }, (res) => {
+        const req = client.request(options, (res) => {
+          // Handle redirects
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            reject(new Error('Redirect detected - please use final URL'))
+            return
+          }
+
           if (res.statusCode !== 200) {
             reject(new Error(`HTTP ${res.statusCode}`))
             return
@@ -1233,8 +1256,8 @@ Keep it concise and actionable.`
           let data = ''
           res.on('data', (chunk) => {
             data += chunk
-            // Stop early if we have the title
-            if (data.includes('</title>')) {
+            // Stop early if we have the title (limit to first 50KB)
+            if (data.length > 50000 || data.includes('</title>')) {
               req.destroy()
             }
           })
@@ -1242,7 +1265,15 @@ Keep it concise and actionable.`
           res.on('end', () => {
             const titleMatch = data.match(/<title[^>]*>(.*?)<\/title>/i)
             if (titleMatch && titleMatch[1]) {
-              resolve(titleMatch[1].trim())
+              // Decode HTML entities in title
+              const title = titleMatch[1]
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .trim()
+              resolve(title)
             } else {
               reject(new Error('No title found'))
             }
@@ -1254,6 +1285,8 @@ Keep it concise and actionable.`
           req.destroy()
           reject(new Error('Request timeout'))
         })
+
+        req.end()
       })
     } catch (error) {
       throw error
