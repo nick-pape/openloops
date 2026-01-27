@@ -681,8 +681,24 @@ Keep it concise and actionable.`
           break
         }
         case 'planner': {
-          systemPrompt += `Current Context: Day Planner\n`
-          systemPrompt += `You can help with planning, scheduling, and time management.\n`
+          systemPrompt += `Current Context: Day Planner\n\n`
+          systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
+          systemPrompt += `## Workflow:\n`
+          systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
+          systemPrompt += `2. Get calendar events: calendar_day_events_get(date) - these are FIXED, don't schedule over them\n`
+          systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
+          systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
+          systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
+          systemPrompt += `   - Use ISO datetime format: "2026-01-27T09:00:00"\n`
+          systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
+          systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
+          systemPrompt += `## Guidelines:\n`
+          systemPrompt += `- Don't call projects_* tools unless user specifically asks about projects\n`
+          systemPrompt += `- Focus on planner_* and tasks_* tools\n`
+          systemPrompt += `- Add 4-8 blocks typically (don't overplan)\n`
+          systemPrompt += `- Respect calendar events (they're fixed)\n`
+          systemPrompt += `- Ask before committing - let user review first\n`
+          systemPrompt += `- If draft exists, get it with planner_draft_get(date) before making changes\n`
           break
         }
         case 'tasks': {
@@ -743,8 +759,10 @@ Keep it concise and actionable.`
       let eventCount = 0
 
       // Run agent and stream events to renderer
+      // Increase maxSteps for planner context (needs more tool calls for draft → blocks → commit workflow)
+      const maxSteps = context.active.type === 'planner' ? 25 : 10
       for await (const agentEvent of runAgentStream(
-        { model, maxSteps: 10, temperature: 0.7, maxOutputTokens: 4000 },
+        { model, maxSteps, temperature: 0.7, maxOutputTokens: 4000 },
         { messages: aiMessages, systemPrompt, abortSignal: abortController.signal }
       )) {
         eventCount++
