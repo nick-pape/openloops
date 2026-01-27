@@ -24,15 +24,17 @@ export function PlannerView() {
   // Subscribe to domain events for live updates
   useEffect(() => {
     const handleDomainEvent = (event: any) => {
+      console.log('[PlannerView] Domain event received:', event.type)
       // Reload plan if it's affected by this event
       if (event.type.startsWith('plan.') || event.type.startsWith('planning.')) {
+        console.log('[PlannerView] Reloading plan due to event:', event.type)
         loadData()
       }
     }
 
     window.electron.onDomainEvent(handleDomainEvent)
     return () => window.electron.offDomainEvent(handleDomainEvent)
-  }, [selectedDate])
+  }, []) // Empty deps - subscribe once, loadData uses current state via closure
 
   const loadData = async () => {
     setLoading(true)

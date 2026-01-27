@@ -681,7 +681,9 @@ Keep it concise and actionable.`
           break
         }
         case 'planner': {
+          const today = new Date().toISOString().split('T')[0]
           systemPrompt += `Current Context: Day Planner\n\n`
+          systemPrompt += `Today's date: ${today}\n\n`
           systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
           systemPrompt += `## Workflow:\n`
           systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
@@ -689,7 +691,9 @@ Keep it concise and actionable.`
           systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
           systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
           systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
-          systemPrompt += `   - Use ISO datetime format: "2026-01-27T09:00:00"\n`
+          systemPrompt += `   - CRITICAL: Use ISO datetime format YYYY-MM-DDTHH:mm:ss (e.g., "2026-01-27T09:00:00" for 9am)\n`
+          systemPrompt += `   - Build datetime strings: take the date from planner_draft_create, add "T" + time like "09:00:00"\n`
+          systemPrompt += `   - Example: if date is "2026-01-27", use "2026-01-27T09:00:00" for 9am, "2026-01-27T17:00:00" for 5pm\n`
           systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
           systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
           systemPrompt += `## Guidelines:\n`
