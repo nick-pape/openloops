@@ -37,6 +37,12 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   const [taskPriority, setTaskPriority] = useState(3)
   const [taskNotes, setTaskNotes] = useState('')
 
+  // Link modal state
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const [linkTitle, setLinkTitle] = useState('')
+  const [fetchingTitle, setFetchingTitle] = useState(false)
+
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
@@ -594,6 +600,51 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
   }
 
+  const handleAddLink = () => {
+    setLinkUrl('')
+    setLinkTitle('')
+    setShowLinkModal(true)
+  }
+
+  const handleLinkUrlChange = async (url: string) => {
+    setLinkUrl(url)
+
+    // Try to fetch title if URL is valid
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      try {
+        setFetchingTitle(true)
+        const title = await window.electron.links.fetchTitle(url)
+        setLinkTitle(title)
+      } catch (error) {
+        console.log('Could not fetch title:', error)
+        // Leave title empty for manual entry
+      } finally {
+        setFetchingTitle(false)
+      }
+    }
+  }
+
+  const handleSaveLink = async () => {
+    if (!linkUrl.trim()) return
+
+    try {
+      await window.electron.captures.create({
+        projectId,
+        type: 'link',
+        title: linkTitle.trim() || linkUrl,
+        bodyText: linkUrl.trim()
+      })
+
+      setShowLinkModal(false)
+      setLinkUrl('')
+      setLinkTitle('')
+      await loadCaptures()
+    } catch (error) {
+      console.error('Failed to save link:', error)
+      alert('Failed to save link')
+    }
+  }
+
   const handleScreenshot = async () => {
     if (isCapturingScreenshot) return
 
@@ -846,6 +897,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
                 </button>
                 <button onClick={handleUploadImage}>🖼️ Image</button>
                 <button onClick={() => window.electron.textCapture.openWindow(projectId)}>+ Text</button>
+                <button onClick={handleAddLink}>🔗 Link</button>
                 <button onClick={isRecording ? handleStopRecording : handleStartRecording}>
                   {isRecording ? '⏹ Stop' : '🎤 Record'}
                 </button>
@@ -1057,6 +1109,53 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
         </div>
       )}
 
+      {showLinkModal && (
+        <div className="modal-overlay" onClick={() => setShowLinkModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Add Link</h2>
+
+            <div className="form-group">
+              <label>URL *</label>
+              <input
+                type="url"
+                value={linkUrl}
+                onChange={(e) => handleLinkUrlChange(e.target.value)}
+                placeholder="https://example.com"
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Title {fetchingTitle && '(fetching...)'}</label>
+              <input
+                type="text"
+                value={linkTitle}
+                onChange={(e) => setLinkTitle(e.target.value)}
+                placeholder="Optional - will use URL if empty"
+                disabled={fetchingTitle}
+              />
+              {!linkTitle && !fetchingTitle && (
+                <small style={{ color: '#666', fontSize: '0.875rem' }}>
+                  Title will be auto-fetched from URL if possible
+                </small>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button className="secondary" onClick={() => setShowLinkModal(false)}>
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveLink}
+                disabled={!linkUrl.trim() || fetchingTitle}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && project && (
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1205,6 +1304,18 @@ function CaptureAccordion({
                 {transcription.status === 'error' &&
                   `Error: ${transcription.errorMessage || 'Unknown error'}`}
               </p>
+            </div>
+          )}
+          {capture.type === 'link' && capture.bodyText && (
+            <div className="link-capture">
+              <a
+                href={capture.bodyText}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link-url"
+              >
+                🔗 {capture.bodyText}
+              </a>
             </div>
           )}
         </div>

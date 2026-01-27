@@ -223,6 +223,11 @@ const api = {
     testConnection: (baseUrl: string, apiKey: string) => ipcRenderer.invoke('transcription:testConnection', baseUrl, apiKey)
   },
 
+  // Links
+  links: {
+    fetchTitle: (url: string) => ipcRenderer.invoke('links:fetchTitle', url)
+  },
+
   // Jobs
   jobs: {
     getAll: () => ipcRenderer.invoke('jobs:getAll'),

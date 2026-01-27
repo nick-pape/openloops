@@ -1215,6 +1215,51 @@ Keep it concise and actionable.`
     await plannerCommands.uncommitDraft(dateStr)
   })
 
+  // Fetch URL title
+  ipcMain.handle('links:fetchTitle', async (_, url: string) => {
+    try {
+      const https = await import('https')
+      const http = await import('http')
+
+      const client = url.startsWith('https') ? https : http
+
+      return new Promise<string>((resolve, reject) => {
+        const req = client.get(url, { timeout: 5000 }, (res) => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}`))
+            return
+          }
+
+          let data = ''
+          res.on('data', (chunk) => {
+            data += chunk
+            // Stop early if we have the title
+            if (data.includes('</title>')) {
+              req.destroy()
+            }
+          })
+
+          res.on('end', () => {
+            const titleMatch = data.match(/<title[^>]*>(.*?)<\/title>/i)
+            if (titleMatch && titleMatch[1]) {
+              resolve(titleMatch[1].trim())
+            } else {
+              reject(new Error('No title found'))
+            }
+          })
+        })
+
+        req.on('error', reject)
+        req.on('timeout', () => {
+          req.destroy()
+          reject(new Error('Request timeout'))
+        })
+      })
+    } catch (error) {
+      throw error
+    }
+  })
+
   // Settings
   ipcMain.handle('settings:get', async (_, key: string) => {
     return repository.getSetting(key)

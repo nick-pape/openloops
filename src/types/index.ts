@@ -9,7 +9,7 @@ export interface Capture {
   id: string
   projectId?: string        // Optional - set if project-level capture
   linkedTaskId?: string     // Optional - set if task-level capture
-  type: 'text' | 'image' | 'audio' | 'chat' | 'decision'
+  type: 'text' | 'image' | 'audio' | 'chat' | 'decision' | 'link'
   title: string
   bodyText?: string
   filePath?: string
@@ -301,6 +301,9 @@ declare global {
       }
       transcription: {
         testConnection: (baseUrl: string, apiKey: string) => Promise<{ success: boolean; message?: string; error?: string }>
+      }
+      links: {
+        fetchTitle: (url: string) => Promise<string>
       }
       onTriggerImageUpload?: (callback: () => void) => void
       offTriggerImageUpload?: (callback: () => void) => void
