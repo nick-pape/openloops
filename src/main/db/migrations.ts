@@ -440,6 +440,82 @@ export const migrations: Migration[] = [
 
       console.log('[Migration] Completed: add-planner-draft-commit-workflow')
     }
+  },
+  {
+    version: 8,
+    name: 'add-link-capture-type',
+    up: (db) => {
+      console.log('[Migration] Running: add-link-capture-type')
+
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        -- Recreate captures table with link type
+        CREATE TABLE captures_new (
+          id TEXT PRIMARY KEY,
+          project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+          linked_task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('text', 'image', 'audio', 'chat', 'decision', 'link')),
+          title TEXT,
+          body_text TEXT,
+          file_path TEXT,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          CHECK (
+            (project_id IS NOT NULL AND linked_task_id IS NULL) OR
+            (project_id IS NULL AND linked_task_id IS NOT NULL)
+          )
+        );
+
+        -- Copy existing data
+        INSERT INTO captures_new SELECT * FROM captures;
+
+        -- Backup and recreate dependent tables
+        CREATE TEMP TABLE capture_flags_backup AS SELECT * FROM capture_flags;
+        DROP TABLE capture_flags;
+
+        CREATE TABLE capture_flags (
+          id TEXT PRIMARY KEY,
+          capture_id TEXT NOT NULL REFERENCES captures_new(id) ON DELETE CASCADE,
+          is_open_loop INTEGER NOT NULL DEFAULT 0
+        );
+
+        INSERT INTO capture_flags SELECT * FROM capture_flags_backup;
+        DROP TABLE capture_flags_backup;
+
+        CREATE TEMP TABLE transcriptions_backup AS SELECT * FROM transcriptions;
+        DROP TABLE transcriptions;
+
+        CREATE TABLE transcriptions (
+          id TEXT PRIMARY KEY,
+          capture_id TEXT NOT NULL REFERENCES captures_new(id) ON DELETE CASCADE,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'done', 'error')),
+          text TEXT,
+          error_message TEXT,
+          provider TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        INSERT INTO transcriptions SELECT * FROM transcriptions_backup;
+        DROP TABLE transcriptions_backup;
+
+        -- Drop old captures table
+        DROP TABLE captures;
+
+        -- Rename new table
+        ALTER TABLE captures_new RENAME TO captures;
+
+        -- Recreate indexes
+        CREATE INDEX IF NOT EXISTS idx_captures_project ON captures(project_id);
+        CREATE INDEX IF NOT EXISTS idx_captures_task ON captures(linked_task_id);
+        CREATE INDEX IF NOT EXISTS idx_captures_created ON captures(created_at DESC);
+
+        COMMIT;
+      `)
+
+      console.log('[Migration] Completed: add-link-capture-type')
+    }
   }
 ]
 

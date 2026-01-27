@@ -12,7 +12,7 @@ export const captures = sqliteTable('captures', {
   id: text('id').primaryKey(),
   projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   linkedTaskId: text('linked_task_id').references(() => tasks.id, { onDelete: 'cascade' }),
-  type: text('type', { enum: ['text', 'image', 'audio', 'chat', 'decision'] }).notNull(),
+  type: text('type', { enum: ['text', 'image', 'audio', 'chat', 'decision', 'link'] }).notNull(),
   title: text('title'), // Nullable - AI generates titles
   bodyText: text('body_text'),
   filePath: text('file_path'),
