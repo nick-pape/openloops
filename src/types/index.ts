@@ -114,6 +114,38 @@ export interface DayPlan {
   createdAt: Date
 }
 
+export interface AgentSummary {
+  id: string
+  name: string
+  description: string
+  isBuiltIn: boolean
+  enabled: boolean
+  mcpServers: string[]
+  toolCount?: number
+  tags?: string[]
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface McpServerSummary {
+  id: string
+  name: string
+  description?: string
+  isBuiltIn: boolean
+  enabled: boolean
+  transport: {
+    kind: string
+    url?: string
+  }
+  status: {
+    id: string
+    connected: boolean
+    healthy?: boolean
+    error?: string
+  }
+  tags?: string[]
+}
+
 declare global {
   interface Window {
     electron: {
@@ -206,6 +238,12 @@ declare global {
       secrets: {
         get: (key: string) => Promise<string | null>
         set: (key: string, value: string) => Promise<void>
+      }
+      agents: {
+        list: () => Promise<AgentSummary[]>
+      }
+      mcpServers: {
+        list: () => Promise<McpServerSummary[]>
       }
       llm: {
         testConnection: (baseUrl: string, apiKey: string) => Promise<{ success: boolean; models?: string[]; error?: string }>

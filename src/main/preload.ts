@@ -202,6 +202,16 @@ const api = {
     set: (key: string, value: string) => ipcRenderer.invoke('secrets:set', key, value)
   },
 
+  // Agents Registry
+  agents: {
+    list: () => ipcRenderer.invoke('agents:list')
+  },
+
+  // MCP Servers Registry
+  mcpServers: {
+    list: () => ipcRenderer.invoke('mcpServers:list')
+  },
+
   // Connection Testing
   llm: {
     testConnection: (baseUrl: string, apiKey: string) => ipcRenderer.invoke('llm:testConnection', baseUrl, apiKey)

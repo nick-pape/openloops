@@ -10,6 +10,8 @@ import { TasksView } from './views/TasksView'
 import { HotkeysView } from './views/HotkeysView'
 import { WorkModeView } from './views/WorkModeView'
 import { TextCaptureView } from './views/TextCaptureView'
+import { AgentsPage } from './pages/AgentsPage'
+import { McpServersPage } from './pages/McpServersPage'
 import { JobsProvider } from './contexts/JobsContext'
 import { useDomainEvents } from './hooks/useDomainEvents'
 import { Project } from '../types'
@@ -23,6 +25,8 @@ type View =
   | { type: 'jobs' }
   | { type: 'hotkeys' }
   | { type: 'settings' }
+  | { type: 'agents' }
+  | { type: 'mcp-servers' }
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -107,6 +111,8 @@ function App() {
           onSelectJobs={() => setCurrentView({ type: 'jobs' })}
           onSelectHotkeys={() => setCurrentView({ type: 'hotkeys' })}
           onSelectSettings={() => setCurrentView({ type: 'settings' })}
+          onSelectAgents={() => setCurrentView({ type: 'agents' })}
+          onSelectMcpServers={() => setCurrentView({ type: 'mcp-servers' })}
           onCreateProject={handleCreateProject}
         />
         <main className="main-content">
@@ -127,6 +133,8 @@ function App() {
           {currentView.type === 'jobs' && <JobsView />}
           {currentView.type === 'hotkeys' && <HotkeysView />}
           {currentView.type === 'settings' && <SettingsView />}
+          {currentView.type === 'agents' && <AgentsPage />}
+          {currentView.type === 'mcp-servers' && <McpServersPage />}
         </main>
         {currentProjectId && (
           <ChatPane

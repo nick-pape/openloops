@@ -21,7 +21,7 @@ import { initLogger, closeLogger, logger } from './logger'
 import { ModelMessage } from '@ai-sdk/provider-utils'
 import { createAiSdkModel } from './llm/aiSdkClient'
 import { runAgentStream } from './ai/agent/openLoopsAgent'
-import { closeMcpClient } from './ai/mcp/openLoopsMcpClient'
+import { closeAllClients as closeMcpClients } from './mcp/registry/clientPool'
 
 // Track active chat streams for cancellation
 const activeChatStreams = new Map<string, AbortController>()
@@ -295,7 +295,7 @@ app.on('before-quit', async () => {
   globalShortcut.unregisterAll()
   screenshotHandler.cleanup()
   jobManager.stop()
-  await closeMcpClient()
+  await closeMcpClients()
   closeDatabase()
   closeLogger()
 })
@@ -1226,6 +1226,55 @@ Keep it concise and actionable.`
       running,
       port: port ? parseInt(port) : 3000
     }
+  })
+
+  // Agents Registry
+  ipcMain.handle('agents:list', async () => {
+    const { getAllAgents } = await import('./mcp/registry/agentRegistry')
+    const { getToolSetForServers } = await import('./mcp/registry/toolsetComposer')
+
+    const agents = getAllAgents()
+
+    // Enhance with tool count
+    const agentsWithCounts = await Promise.all(
+      agents.map(async (agent) => {
+        try {
+          const tools = await getToolSetForServers(agent.mcpServers)
+          return {
+            ...agent,
+            toolCount: Object.keys(tools).length
+          }
+        } catch (error) {
+          return {
+            ...agent,
+            toolCount: 0
+          }
+        }
+      })
+    )
+
+    return agentsWithCounts
+  })
+
+  // MCP Servers Registry
+  ipcMain.handle('mcpServers:list', async () => {
+    const { getAllServers } = await import('./mcp/registry/registry')
+    const { healthCheck } = await import('./mcp/registry/clientPool')
+
+    const servers = getAllServers()
+
+    // Enhance with health status
+    const serversWithStatus = await Promise.all(
+      servers.map(async (server) => {
+        const status = await healthCheck(server.id)
+        return {
+          ...server,
+          status
+        }
+      })
+    )
+
+    return serversWithStatus
   })
 
   // LLM Connection Testing

@@ -12,6 +12,8 @@ interface SidebarProps {
   onSelectJobs: () => void
   onSelectHotkeys: () => void
   onSelectSettings: () => void
+  onSelectAgents: () => void
+  onSelectMcpServers: () => void
   onCreateProject: (name: string) => void
 }
 
@@ -24,6 +26,8 @@ export function Sidebar({
   onSelectJobs,
   onSelectHotkeys,
   onSelectSettings,
+  onSelectAgents,
+  onSelectMcpServers,
   onCreateProject
 }: SidebarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -78,7 +82,7 @@ export function Sidebar({
 
         <div className="sidebar-section">
           <div className="sidebar-section-header">
-            <h3>Tasks</h3>
+            <h3>Planner</h3>
             <button
               className="icon-button"
               onClick={onSelectTasks}
@@ -94,18 +98,36 @@ export function Sidebar({
             >
               Tasks
             </button>
-          </div>
-        </div>
-
-        <div className="sidebar-section">
-          <h3>Tools</h3>
-          <div className="sidebar-items">
             <button
               className={`sidebar-item ${currentView.type === 'planner' ? 'active' : ''}`}
               onClick={onSelectPlanner}
             >
               Today Planner
             </button>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <h3>Agents</h3>
+          <div className="sidebar-items">
+            <button
+              className={`sidebar-item ${currentView.type === 'agents' ? 'active' : ''}`}
+              onClick={onSelectAgents}
+            >
+              Agents
+            </button>
+            <button
+              className={`sidebar-item ${currentView.type === 'mcp-servers' ? 'active' : ''}`}
+              onClick={onSelectMcpServers}
+            >
+              MCP Servers
+            </button>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <h3>Tools</h3>
+          <div className="sidebar-items">
             <button
               className={`sidebar-item ${currentView.type === 'jobs' ? 'active' : ''}`}
               onClick={onSelectJobs}

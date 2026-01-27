@@ -22,7 +22,7 @@
 
 import { streamText, LanguageModel, stepCountIs } from 'ai'
 import { ModelMessage } from '@ai-sdk/provider-utils'
-import { getOpenLoopsToolSet } from '../mcp/openLoopsMcpClient'
+import { getToolSetForServers } from '../../mcp/registry/toolsetComposer'
 import { logger } from '../../logger'
 
 /**
@@ -65,12 +65,14 @@ export async function* runAgentStream(
   const { messages, systemPrompt, abortSignal } = options
 
   try {
-    // Get tools from our MCP server via HTTP client
-    logger.info('[Agent] Getting tools from MCP server...')
-    let tools: Awaited<ReturnType<typeof getOpenLoopsToolSet>>
+    // Get tools from MCP servers via toolset composer
+    // Currently just the built-in 'openloops' server, but architected for N servers
+    logger.info('[Agent] Getting tools from MCP servers...')
+    let tools: any
 
     try {
-      tools = await getOpenLoopsToolSet()
+      // Request toolset for the default agent (currently just 'openloops' server)
+      tools = await getToolSetForServers(['openloops'])
       logger.info('[Agent] Got', Object.keys(tools).length, 'tools')
     } catch (toolError: any) {
       logger.warn('[Agent] Failed to get MCP tools, running without tools:', toolError.message)
