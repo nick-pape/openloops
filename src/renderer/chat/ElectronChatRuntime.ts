@@ -1,4 +1,4 @@
-import { ChatMessage, ToolCall } from '../../types'
+import { ChatMessage, ToolCall, ChatContext } from '../../types'
 
 /**
  * ElectronChatRuntime - Custom runtime adapter for assistant-ui
@@ -7,9 +7,9 @@ import { ChatMessage, ToolCall } from '../../types'
  * via IPC. It provides a simple interface for assistant-ui components.
  *
  * Supports streaming responses via AI SDK and MCP tool calls.
+ * Now context-aware: messages are sent with current page context.
  */
 export class ElectronChatRuntime {
-  private projectId: string
   private messages: ChatMessage[] = []
   private subscribers: Set<() => void> = new Set()
   private isLoading: boolean = false
@@ -23,9 +23,8 @@ export class ElectronChatRuntime {
   private cleanupToolResult: (() => void) | null = null
   private cleanupError: (() => void) | null = null
 
-  constructor(projectId: string) {
-    this.projectId = projectId
-    console.log('[ElectronChatRuntime] Constructor called, projectId:', projectId)
+  constructor() {
+    console.log('[ElectronChatRuntime] Constructor called')
     this.setupStreamingListeners()
   }
 
@@ -187,12 +186,17 @@ export class ElectronChatRuntime {
   /**
    * Send a message and get streaming response
    */
-  async sendMessage(content: string): Promise<void> {
-    // Add user message
+  async sendMessage(content: string, context: ChatContext): Promise<void> {
+    // Add user message with context
     const userMessage: ChatMessage = {
       role: 'user',
       content,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      context: {
+        type: context.active.type,
+        label: context.active.label,
+        color: context.active.color
+      }
     }
 
     this.messages.push(userMessage)
@@ -207,14 +211,14 @@ export class ElectronChatRuntime {
     this.streamingMessageIndex = this.messages.length - 1
 
     this.isLoading = true
-    this.currentStreamId = `${this.projectId}-${Date.now()}`
+    this.currentStreamId = `chat-${Date.now()}`
     this.notifySubscribers()
 
     try {
-      // Send to backend - streaming deltas will update the message via events
+      // Send to backend with context - streaming deltas will update the message via events
       const response = await window.electron.chat.send(
-        this.projectId,
         this.messages.slice(0, -1), // Don't send the empty assistant message
+        context,
         this.currentStreamId!
       )
 

@@ -14,7 +14,7 @@ import { AgentsPage } from './pages/AgentsPage'
 import { McpServersPage } from './pages/McpServersPage'
 import { JobsProvider } from './contexts/JobsContext'
 import { useDomainEvents } from './hooks/useDomainEvents'
-import { Project } from '../types'
+import { Project, ChatContext } from '../types'
 import './App.css'
 
 type View =
@@ -32,6 +32,10 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentView, setCurrentView] = useState<View>({ type: 'welcome' })
   const [chatCollapsed, setChatCollapsed] = useState(false)
+  const [chatContext, setChatContext] = useState<ChatContext>({
+    general: { projects: [], openTaskCount: 0 },
+    active: { type: 'general', label: 'General', color: 'gray' }
+  })
 
   // Check if this is the Work Mode window
   const isWorkModeWindow = window.location.hash === '#/work-mode'
@@ -47,6 +51,95 @@ function App() {
     const allProjects = await window.electron.projects.getAll()
     setProjects(allProjects)
   }
+
+  // Build chat context based on current view
+  const buildChatContext = async (view: View, allProjects: Project[]): Promise<ChatContext> => {
+    // General context (always present)
+    const openTasks = await window.electron.tasks.getOpen()
+    const general = {
+      projects: allProjects.map(p => ({ id: p.id, name: p.name })),
+      openTaskCount: openTasks.length
+    }
+
+    // Active context (changes with navigation)
+    let active: ChatContext['active']
+
+    switch (view.type) {
+      case 'project': {
+        const project = allProjects.find(p => p.id === view.projectId)
+        const projectTasks = await window.electron.tasks.getOpen(view.projectId)
+        const captures = await window.electron.captures.getByProject(view.projectId)
+        active = {
+          type: 'project',
+          label: `Project: ${project?.name || 'Unknown'}`,
+          color: 'blue',
+          data: {
+            projectId: view.projectId,
+            projectName: project?.name,
+            recentCaptureCount: captures.length,
+            openTaskCount: projectTasks.length
+          }
+        }
+        break
+      }
+      case 'planner':
+        active = {
+          type: 'planner',
+          label: 'Day Planner',
+          color: 'green',
+          data: {}
+        }
+        break
+      case 'tasks':
+        active = {
+          type: 'tasks',
+          label: 'All Tasks',
+          color: 'orange',
+          data: {}
+        }
+        break
+      case 'agents':
+        active = {
+          type: 'agents',
+          label: 'Agents',
+          color: 'teal',
+          data: {}
+        }
+        break
+      case 'mcp-servers':
+        active = {
+          type: 'mcp-servers',
+          label: 'MCP Servers',
+          color: 'teal',
+          data: {}
+        }
+        break
+      case 'settings':
+        active = {
+          type: 'settings',
+          label: 'Settings',
+          color: 'purple',
+          data: {}
+        }
+        break
+      default:
+        active = {
+          type: 'general',
+          label: 'General',
+          color: 'gray',
+          data: {}
+        }
+    }
+
+    return { general, active }
+  }
+
+  // Update chat context when view changes
+  useEffect(() => {
+    if (!isWorkModeWindow && !isTextCaptureWindow) {
+      buildChatContext(currentView, projects).then(setChatContext)
+    }
+  }, [currentView, projects, isWorkModeWindow, isTextCaptureWindow])
 
   // Listen for domain events to update UI when external agents (MCP) make changes
   useDomainEvents((event) => {
@@ -95,9 +188,6 @@ function App() {
     return <TextCaptureView />
   }
 
-  // Get current project ID for chat context
-  const currentProjectId = currentView.type === 'project' ? currentView.projectId : null
-
   return (
     <JobsProvider>
       <div className={`app ${chatCollapsed ? 'chat-collapsed' : ''}`}>
@@ -136,13 +226,11 @@ function App() {
           {currentView.type === 'agents' && <AgentsPage />}
           {currentView.type === 'mcp-servers' && <McpServersPage />}
         </main>
-        {currentProjectId && (
-          <ChatPane
-            projectId={currentProjectId}
-            isCollapsed={chatCollapsed}
-            onToggle={() => setChatCollapsed(!chatCollapsed)}
-          />
-        )}
+        <ChatPane
+          context={chatContext}
+          isCollapsed={chatCollapsed}
+          onToggle={() => setChatCollapsed(!chatCollapsed)}
+        />
       </div>
     </JobsProvider>
   )

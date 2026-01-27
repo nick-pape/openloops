@@ -633,9 +633,9 @@ Keep it concise and actionable.`
     }
   })
 
-  // Chat - uses AI SDK agent with MCP tools and streaming
-  ipcMain.handle('chat:send', async (event, projectId: string, messages: any[], streamId: string) => {
-    console.log('[Chat] Starting agent chat, project:', projectId, 'streamId:', streamId)
+  // Chat - uses AI SDK agent with MCP tools and streaming (context-aware)
+  ipcMain.handle('chat:send', async (event, messages: any[], context: any, streamId: string) => {
+    console.log('[Chat] Starting agent chat, context:', context.active.type, 'streamId:', streamId)
 
     try {
       // Get LLM config from settings
@@ -653,26 +653,71 @@ Keep it concise and actionable.`
         }
       }
 
-      // Gather project context for system prompt
-      const project = await repository.getProject(projectId)
-      const allCaptures = await repository.getCapturesByProject(projectId)
-      const recentCaptures = allCaptures.filter(c => c.type !== 'chat').slice(0, 5)
-      const openTasks = await repository.getOpenTasks(projectId)
+      // Build system prompt based on context type
+      let systemPrompt = `You are an assistant for Open Loops.\n\n`
 
-      // Build context string with project info
-      let contextInfo = `Project: "${project.name}" (ID: ${projectId})
-Created: ${project.createdAt.toLocaleDateString()}`
+      // Add general context
+      if (context.general.projects.length > 0) {
+        systemPrompt += `Projects in workspace: ${context.general.projects.map((p: any) => p.name).join(', ')}\n`
+      }
+      systemPrompt += `Total open tasks: ${context.general.openTaskCount}\n\n`
 
-      if (recentCaptures.length > 0) {
-        contextInfo += `\nRecent captures: ${recentCaptures.map(c => c.title || 'Untitled').join(', ')}`
+      // Add active context based on type
+      switch (context.active.type) {
+        case 'project': {
+          const projectId = context.active.data.projectId
+          const project = await repository.getProject(projectId)
+          const allCaptures = await repository.getCapturesByProject(projectId)
+          const recentCaptures = allCaptures.filter((c: any) => c.type !== 'chat').slice(0, 5)
+
+          systemPrompt += `Current Context: Project "${project.name}"\n`
+          systemPrompt += `Project ID: ${projectId}\n`
+          systemPrompt += `Created: ${project.createdAt.toLocaleDateString()}\n`
+          if (recentCaptures.length > 0) {
+            systemPrompt += `Recent captures: ${recentCaptures.map((c: any) => c.title || 'Untitled').join(', ')}\n`
+          }
+          systemPrompt += `Open tasks in this project: ${context.active.data.openTaskCount}\n\n`
+          systemPrompt += `When creating/modifying, use project ID: ${projectId}\n`
+          break
+        }
+        case 'planner': {
+          systemPrompt += `Current Context: Day Planner\n`
+          systemPrompt += `You can help with planning, scheduling, and time management.\n`
+          break
+        }
+        case 'tasks': {
+          systemPrompt += `Current Context: All Tasks View\n`
+          systemPrompt += `Viewing all open tasks across all projects.\n`
+          break
+        }
+        case 'agents': {
+          systemPrompt += `Current Context: Agents Configuration\n`
+          systemPrompt += `You can help with understanding and configuring agents.\n`
+          break
+        }
+        case 'mcp-servers': {
+          systemPrompt += `Current Context: MCP Servers Configuration\n`
+          systemPrompt += `You can help with MCP server setup and configuration.\n`
+          break
+        }
+        case 'settings': {
+          systemPrompt += `Current Context: Settings\n`
+          systemPrompt += `You can help with configuring Open Loops settings.\n`
+          break
+        }
+        default: {
+          systemPrompt += `Current Context: General\n`
+          systemPrompt += `You can help with projects, tasks, planning, and configuration.\n`
+        }
       }
 
-      if (openTasks.length > 0) {
-        contextInfo += `\nOpen tasks: ${openTasks.length}`
-      }
+      systemPrompt += `\nRules:
+- Keep responses SHORT (1-3 sentences). Be concise.
+- Use tools when needed to answer questions or perform actions.
+- If you don't have info to answer a question, use a tool to find it.`
 
       // Build conversation messages (without system - that goes in systemPrompt)
-      const aiMessages: ModelMessage[] = messages.map(msg => ({
+      const aiMessages: ModelMessage[] = messages.map((msg: any) => ({
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content
       }))
@@ -686,17 +731,6 @@ Created: ${project.createdAt.toLocaleDateString()}`
 
       // Get the sender's webContents to send streaming updates
       const webContents = event.sender
-
-      // Build system prompt with project context
-      const systemPrompt = `You are an assistant for Open Loops.
-
-${contextInfo}
-
-Rules:
-- Keep responses SHORT (1-3 sentences). Be concise.
-- Use tools when needed to answer questions or perform actions. Don't be overly cautious.
-- When asked to create/add, use the current project ID above. Don't create new projects.
-- If you don't have info to answer a question, use a tool to find it.`
 
       // Start agent stream
       console.log('[Chat] Starting agent stream with tools...')

@@ -10,6 +10,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className={`chat-message ${message.role}`}>
+      {/* Show context badge for user messages */}
+      {message.role === 'user' && message.context && (
+        <div className={`message-context-badge context-${message.context.color}`}>
+          🎯 {message.context.label}
+        </div>
+      )}
+
       <div className="message-header">
         <span className="message-role">
           {message.role === 'user' ? '👤 You' : message.role === 'system' ? '⚙️ System' : '🤖 Assistant'}

@@ -28,11 +28,29 @@ export interface ToolCall {
   error?: string
 }
 
+export interface ChatContext {
+  general: {
+    projects: Array<{ id: string; name: string }>
+    openTaskCount: number
+  }
+  active: {
+    type: 'project' | 'planner' | 'tasks' | 'agents' | 'mcp-servers' | 'settings' | 'general'
+    label: string
+    color: 'blue' | 'green' | 'orange' | 'purple' | 'teal' | 'gray'
+    data?: Record<string, any>
+  }
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp?: string  // Optional for system messages
   toolCalls?: ToolCall[]  // Tool calls made during this message
+  context?: {  // Context when message was sent
+    type: string
+    label: string
+    color: string
+  }
 }
 
 export interface CaptureMetadata {
@@ -212,11 +230,18 @@ declare global {
         save: (text: string) => Promise<Capture>
       }
       chat: {
-        send: (projectId: string, messages: ChatMessage[]) => Promise<ChatMessage>
+        send: (messages: ChatMessage[], context: ChatContext, streamId: string) => Promise<ChatMessage>
+        cancel: (streamId: string) => Promise<void>
         save: (projectId: string, messages: ChatMessage[]) => Promise<Capture>
         extractTasks: (projectId: string, messages: ChatMessage[]) => Promise<string>
         extractDecisions: (projectId: string, messages: ChatMessage[]) => Promise<string>
         updateSummary: (projectId: string) => Promise<void>
+        onStarted: (callback: (data: any) => void) => () => void
+        onDelta: (callback: (data: any) => void) => () => void
+        onDone: (callback: (data: any) => void) => () => void
+        onToolCall: (callback: (data: any) => void) => () => void
+        onToolResult: (callback: (data: any) => void) => () => void
+        onError: (callback: (data: any) => void) => () => void
       }
       calendar: {
         importICS: () => Promise<string | null>

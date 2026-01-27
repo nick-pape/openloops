@@ -1,25 +1,26 @@
 import { useState, useEffect, useRef } from 'react'
 import { ElectronChatRuntime } from '../chat/ElectronChatRuntime'
-import { ChatMessage } from './ChatMessage'
+import { ChatMessage as ChatMessageComponent } from './ChatMessage'
+import { ChatContext } from '../../types'
 import './ChatPane.css'
 
 interface ChatPaneProps {
-  projectId: string
+  context: ChatContext
   isCollapsed: boolean
   onToggle: () => void
 }
 
-export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
+export function ChatPane({ context, isCollapsed, onToggle }: ChatPaneProps) {
   const runtimeRef = useRef<ElectronChatRuntime | null>(null)
   const [, setUpdateTrigger] = useState(0)
   const [inputValue, setInputValue] = useState('')
   const [showCommitMenu, setShowCommitMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Initialize runtime and cleanup on unmount or projectId change
+  // Initialize runtime once (not dependent on context changes)
   useEffect(() => {
     // Create new runtime
-    const runtime = new ElectronChatRuntime(projectId)
+    const runtime = new ElectronChatRuntime()
     runtimeRef.current = runtime
 
     const unsubscribe = runtime.subscribe(() => {
@@ -31,7 +32,7 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
       runtime.dispose()
       runtimeRef.current = null
     }
-  }, [projectId])
+  }, [])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -44,12 +45,20 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
 
     const message = inputValue.trim()
     setInputValue('')
-    await runtimeRef.current.sendMessage(message)
+    await runtimeRef.current.sendMessage(message, context)
   }
 
   const handleCommitAction = async (action: string) => {
     setShowCommitMenu(false)
     if (!runtimeRef.current) return
+
+    // Commit actions only work in project context
+    if (context.active.type !== 'project' || !context.active.data?.projectId) {
+      alert('Commit actions are only available in project context')
+      return
+    }
+
+    const projectId = context.active.data.projectId
 
     try {
       const messages = runtimeRef.current.getMessages()
@@ -103,7 +112,8 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
             <button
               className="commit-btn"
               onClick={() => setShowCommitMenu(!showCommitMenu)}
-              disabled={messages.length === 0}
+              disabled={messages.length === 0 || context.active.type !== 'project'}
+              title={context.active.type !== 'project' ? 'Only available in project context' : ''}
             >
               Commit ▼
             </button>
@@ -121,8 +131,13 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
               </div>
             )}
           </div>
-          <button className="clear-btn" onClick={() => runtimeRef.current?.clearMessages()} disabled={messages.length === 0}>
-            🗑️
+          <button
+            className="new-chat-btn"
+            onClick={() => runtimeRef.current?.clearMessages()}
+            disabled={messages.length === 0}
+            title="New Chat"
+          >
+            +
           </button>
           <button className="close-btn" onClick={onToggle}>
             ✕
@@ -133,13 +148,13 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty-state">
-            <p>👋 Start a conversation about this project</p>
+            <p>👋 Start a conversation</p>
             <p className="chat-hint">Ask questions, brainstorm ideas, or get help with tasks</p>
           </div>
         )}
 
         {messages.map((msg, index) => (
-          <ChatMessage key={index} message={msg} />
+          <ChatMessageComponent key={index} message={msg} />
         ))}
 
         {isLoading && (
@@ -157,6 +172,10 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
         <div ref={messagesEndRef} />
       </div>
 
+      <div className={`chat-context-badge context-${context.active.color}`}>
+        🎯 {context.active.label}
+      </div>
+
       <form className="chat-composer" onSubmit={handleSendMessage}>
         <textarea
           value={inputValue}
@@ -167,7 +186,7 @@ export function ChatPane({ projectId, isCollapsed, onToggle }: ChatPaneProps) {
               handleSendMessage(e)
             }
           }}
-          placeholder="Ask about this project... (Enter to send, Shift+Enter for new line)"
+          placeholder={`Ask about ${context.active.label}... (Enter to send, Shift+Enter for new line)`}
           disabled={isLoading}
           rows={3}
         />
