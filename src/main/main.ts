@@ -1154,6 +1154,7 @@ Keep it concise and actionable.`
     const keys = [
       'transcription_type',
       'transcription_base_url',
+      'transcription_model',
       'whisper_binary_path',
       'whisper_model_path',
       'llm_type',

@@ -222,7 +222,7 @@ export function SettingsView() {
           <label>Model</label>
           {availableTranscriptionModels.length > 0 ? (
             <select
-              value={settings.transcription_model || 'whisper-1'}
+              value={settings.transcription_model || ''}
               onChange={(e) => handleSettingChange('transcription_model', e.target.value)}
             >
               <option value="">Select a model...</option>
@@ -233,7 +233,7 @@ export function SettingsView() {
           ) : (
             <input
               type="text"
-              value={settings.transcription_model || 'whisper-1'}
+              value={settings.transcription_model || ''}
               onChange={(e) => handleSettingChange('transcription_model', e.target.value)}
               placeholder="whisper-1"
             />
