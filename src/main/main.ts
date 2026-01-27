@@ -1197,6 +1197,11 @@ Keep it concise and actionable.`
     await repository.deleteDayPlanBlock(blockId)
   })
 
+  ipcMain.handle('planning:discardDraft', async (_, dateStr: string) => {
+    const { plannerCommands } = await import('./domain/commands')
+    await plannerCommands.discardDraft(dateStr)
+  })
+
   // Settings
   ipcMain.handle('settings:get', async (_, key: string) => {
     return repository.getSetting(key)

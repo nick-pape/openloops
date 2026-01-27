@@ -270,6 +270,7 @@ declare global {
         get: (dateStr: string) => Promise<{ plan: DayPlan; blocks: TimeBlock[] } | null>
         updateBlock: (blockId: string, updates: any) => Promise<void>
         deleteBlock: (blockId: string) => Promise<void>
+        discardDraft: (dateStr: string) => Promise<void>
       }
       planningProfiles: {
         list: () => Promise<PlanningProfile[]>

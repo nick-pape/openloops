@@ -186,7 +186,8 @@ const api = {
     save: (dateStr: string, blocks: any[]) => ipcRenderer.invoke('planning:save', dateStr, blocks),
     get: (dateStr: string) => ipcRenderer.invoke('planning:get', dateStr),
     updateBlock: (blockId: string, updates: any) => ipcRenderer.invoke('planning:updateBlock', blockId, updates),
-    deleteBlock: (blockId: string) => ipcRenderer.invoke('planning:deleteBlock', blockId)
+    deleteBlock: (blockId: string) => ipcRenderer.invoke('planning:deleteBlock', blockId),
+    discardDraft: (dateStr: string) => ipcRenderer.invoke('planning:discardDraft', dateStr)
   },
 
   // Settings

@@ -86,10 +86,8 @@ export function PlannerView() {
 
     try {
       setLoading(true)
-      // Delete the draft plan
-      if (plan?.id) {
-        await window.electron.planning.delete(plan.id)
-      }
+      // Discard the draft plan using the date
+      await window.electron.planning.discardDraft(selectedDate)
       await loadData()
     } catch (error) {
       console.error('Failed to discard draft:', error)
