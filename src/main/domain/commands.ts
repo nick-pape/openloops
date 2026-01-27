@@ -303,6 +303,21 @@ export class PlannerCommands {
     return plan.id
   }
 
+  async uncommitDraft(date: string) {
+    const plan = await repository.getDayPlan(date)
+    if (!plan || plan.status !== 'committed') {
+      throw new Error('No committed plan found for this date')
+    }
+
+    await repository.updateDayPlanStatus(plan.id, 'draft')
+    domainEvents.emitDomainEvent({
+      type: 'plan.uncommitted',
+      planId: plan.id,
+      date
+    })
+    return plan.id
+  }
+
   // Block Primitives
   async addBlock(
     planId: string,

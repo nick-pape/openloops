@@ -695,15 +695,22 @@ Keep it concise and actionable.`
           systemPrompt += `   - Example: "2026-01-27T09:00:00Z" for 9am, "2026-01-27T17:00:00Z" for 5pm\n`
           systemPrompt += `   - MUST end with 'Z' (UTC timezone) - this is required by the validator\n`
           systemPrompt += `   - Build datetime: date + "T" + time + "Z" (e.g., "2026-01-27" + "T" + "09:00:00" + "Z")\n`
+          systemPrompt += `   - locked: Set to FALSE by default - let user lock blocks manually via UI\n`
           systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
           systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
+          systemPrompt += `## Uncommitting Plans:\n`
+          systemPrompt += `- To "uncommit" or "unlock" a plan: planner_draft_uncommit(date)\n`
+          systemPrompt += `- This reverts a committed plan back to draft status for editing\n`
+          systemPrompt += `- After uncommitting, you can add/edit/delete blocks again\n\n`
           systemPrompt += `## Guidelines:\n`
           systemPrompt += `- Don't call projects_* tools unless user specifically asks about projects\n`
           systemPrompt += `- Focus on planner_* and tasks_* tools\n`
           systemPrompt += `- Add 4-8 blocks typically (don't overplan)\n`
           systemPrompt += `- Respect calendar events (they're fixed)\n`
-          systemPrompt += `- Ask before committing - let user review first\n`
-          systemPrompt += `- If draft exists, get it with planner_draft_get(date) before making changes\n`
+          systemPrompt += `- DON'T commit automatically - ask user first or let them review\n`
+          systemPrompt += `- Set locked=false on blocks - users lock them manually via UI buttons\n`
+          systemPrompt += `- If user asks to "uncommit" or "unlock" plan, use planner_draft_uncommit(date)\n`
+          systemPrompt += `- Use planner_day_get(date) to check plan status (draft vs committed)\n`
           break
         }
         case 'tasks': {
@@ -1201,6 +1208,11 @@ Keep it concise and actionable.`
   ipcMain.handle('planning:discardDraft', async (_, dateStr: string) => {
     const { plannerCommands } = await import('./domain/commands')
     await plannerCommands.discardDraft(dateStr)
+  })
+
+  ipcMain.handle('planning:uncommitDraft', async (_, dateStr: string) => {
+    const { plannerCommands } = await import('./domain/commands')
+    await plannerCommands.uncommitDraft(dateStr)
   })
 
   // Settings

@@ -704,6 +704,24 @@ export async function plannerDraftCommit(args: z.infer<typeof plannerDraftCommit
   }
 }
 
+export const plannerDraftUncommitTool = {
+  name: 'planner_draft_uncommit',
+  description: 'Revert a committed plan back to draft status (allows editing a committed plan)',
+  inputSchema: z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  })
+}
+
+export async function plannerDraftUncommit(args: z.infer<typeof plannerDraftUncommitTool.inputSchema>) {
+  const planId = await plannerCommands.uncommitDraft(args.date)
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({ success: true, planId, message: 'Plan reverted to draft status' }, null, 2)
+    }]
+  }
+}
+
 // ============================================================================
 // Tool Registry (for MCP server)
 // ============================================================================
@@ -763,5 +781,6 @@ export const allTools: ToolEntry[] = [
 
   // Planner - Validation & Commit
   { definition: plannerDraftValidateTool, handler: plannerDraftValidate },
-  { definition: plannerDraftCommitTool, handler: plannerDraftCommit }
+  { definition: plannerDraftCommitTool, handler: plannerDraftCommit },
+  { definition: plannerDraftUncommitTool, handler: plannerDraftUncommit }
 ]

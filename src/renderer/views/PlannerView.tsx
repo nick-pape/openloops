@@ -86,14 +86,19 @@ export function PlannerView() {
 
     try {
       setLoading(true)
+      console.log('[PlannerView] Discarding draft for date:', selectedDate)
       // Discard the draft plan using the date
       await window.electron.planning.discardDraft(selectedDate)
+      console.log('[PlannerView] Draft discarded, reloading data...')
       await loadData()
+      console.log('[PlannerView] Data reloaded after discard')
     } catch (error) {
-      console.error('Failed to discard draft:', error)
-      alert('Failed to discard draft')
+      console.error('[PlannerView] Failed to discard draft:', error)
+      alert('Failed to discard draft: ' + (error as Error).message)
+    } finally {
+      setLoading(false)
+      console.log('[PlannerView] Discard handler complete, loading=false')
     }
-    setLoading(false)
   }
 
   const handleCreateTask = async () => {
@@ -155,6 +160,38 @@ export function PlannerView() {
     }
   }
 
+  const handleToggleLock = async (block: TimeBlock) => {
+    if (!block.id) return
+
+    try {
+      await window.electron.planning.updateBlock(block.id, {
+        ...block,
+        locked: !block.locked
+      })
+      await loadData()
+    } catch (error) {
+      console.error('Failed to toggle lock:', error)
+    }
+  }
+
+  const handleUncommitPlan = async () => {
+    if (!confirm('Revert this plan to draft status? You will be able to edit it again.')) return
+
+    try {
+      setLoading(true)
+      console.log('[PlannerView] Uncommitting plan for date:', selectedDate)
+      await window.electron.planning.uncommitDraft(selectedDate)
+      console.log('[PlannerView] Plan uncommitted, reloading data...')
+      await loadData()
+      console.log('[PlannerView] Data reloaded after uncommit')
+    } catch (error) {
+      console.error('[PlannerView] Failed to uncommit plan:', error)
+      alert('Failed to uncommit plan: ' + (error as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Build unified timeline combining events and blocks
   const timelineItems = [
     ...events.map(event => ({
@@ -205,11 +242,18 @@ export function PlannerView() {
           <span className="status-label">
             {plan.status === 'draft' ? '📝 Draft Plan' : '✅ Committed Plan'}
           </span>
-          {plan.status === 'draft' && (
-            <button className="discard-btn" onClick={handleDiscardDraft} disabled={loading}>
-              Discard Draft
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {plan.status === 'draft' && (
+              <button className="discard-btn" onClick={handleDiscardDraft} disabled={loading}>
+                Discard Draft
+              </button>
+            )}
+            {plan.status === 'committed' && (
+              <button className="discard-btn" onClick={handleUncommitPlan} disabled={loading}>
+                Uncommit Plan
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -352,10 +396,17 @@ export function PlannerView() {
                     {block.locked && <span className="timeline-badge timeline-locked">🔒 Locked</span>}
                     {block.notes && <div className="timeline-notes">{block.notes}</div>}
                   </div>
-                  {block.id && plan?.status !== 'committed' && !block.locked && (
+                  {block.id && plan?.status !== 'committed' && (
                     <div className="timeline-actions">
-                      <button className="action-btn" onClick={() => handleEditBlock(block)}>Edit</button>
-                      <button className="action-btn delete-btn" onClick={() => handleDeleteBlock(block.id!)}>Delete</button>
+                      <button className="action-btn" onClick={() => handleToggleLock(block)}>
+                        {block.locked ? '🔓 Unlock' : '🔒 Lock'}
+                      </button>
+                      {!block.locked && (
+                        <>
+                          <button className="action-btn" onClick={() => handleEditBlock(block)}>Edit</button>
+                          <button className="action-btn delete-btn" onClick={() => handleDeleteBlock(block.id!)}>Delete</button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

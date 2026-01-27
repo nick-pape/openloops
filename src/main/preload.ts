@@ -187,7 +187,8 @@ const api = {
     get: (dateStr: string) => ipcRenderer.invoke('planning:get', dateStr),
     updateBlock: (blockId: string, updates: any) => ipcRenderer.invoke('planning:updateBlock', blockId, updates),
     deleteBlock: (blockId: string) => ipcRenderer.invoke('planning:deleteBlock', blockId),
-    discardDraft: (dateStr: string) => ipcRenderer.invoke('planning:discardDraft', dateStr)
+    discardDraft: (dateStr: string) => ipcRenderer.invoke('planning:discardDraft', dateStr),
+    uncommitDraft: (dateStr: string) => ipcRenderer.invoke('planning:uncommitDraft', dateStr)
   },
 
   // Settings
