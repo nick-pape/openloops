@@ -382,14 +382,72 @@ export class Repository {
     await db.delete(schema.calendarEvents)
   }
 
+  // Planning Profiles
+  async createPlanningProfile(name: string, instructionsText: string, constraintsJson?: string) {
+    const db = getDatabase()
+    const id = uuidv4()
+    const now = new Date()
+
+    await db.insert(schema.planningProfiles).values({
+      id,
+      name,
+      instructionsText,
+      constraintsJson,
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    return this.getPlanningProfile(id)
+  }
+
+  async getPlanningProfile(id: string) {
+    const db = getDatabase()
+    const result = await db.select().from(schema.planningProfiles)
+      .where(eq(schema.planningProfiles.id, id))
+      .limit(1)
+    return result[0]
+  }
+
+  async getAllPlanningProfiles() {
+    const db = getDatabase()
+    return db.select().from(schema.planningProfiles)
+      .orderBy(desc(schema.planningProfiles.updatedAt))
+  }
+
+  async updatePlanningProfile(id: string, name: string, instructionsText: string, constraintsJson?: string) {
+    const db = getDatabase()
+    await db.update(schema.planningProfiles)
+      .set({ name, instructionsText, constraintsJson, updatedAt: new Date() })
+      .where(eq(schema.planningProfiles.id, id))
+    return this.getPlanningProfile(id)
+  }
+
+  async setPlanningProfileDefault(id: string) {
+    const db = getDatabase()
+    // Unset all defaults
+    await db.update(schema.planningProfiles).set({ isDefault: false })
+    // Set this one as default
+    await db.update(schema.planningProfiles)
+      .set({ isDefault: true })
+      .where(eq(schema.planningProfiles.id, id))
+  }
+
+  async deletePlanningProfile(id: string) {
+    const db = getDatabase()
+    await db.delete(schema.planningProfiles).where(eq(schema.planningProfiles.id, id))
+  }
+
   // Day Plans
-  async createDayPlan(date: string) {
+  async createDayPlan(date: string, status: 'draft' | 'committed' = 'draft', planningProfileId?: string) {
     const db = getDatabase()
     const id = uuidv4()
 
     await db.insert(schema.dayPlans).values({
       id,
       date,
+      status,
+      planningProfileId,
       createdAt: new Date()
     })
 
@@ -404,12 +462,38 @@ export class Repository {
     return result[0]
   }
 
+  async getDayPlanById(id: string) {
+    const db = getDatabase()
+    const result = await db.select().from(schema.dayPlans)
+      .where(eq(schema.dayPlans.id, id))
+      .limit(1)
+    return result[0]
+  }
+
+  async updateDayPlanStatus(id: string, status: 'draft' | 'committed') {
+    const db = getDatabase()
+    await db.update(schema.dayPlans)
+      .set({ status })
+      .where(eq(schema.dayPlans.id, id))
+    return this.getDayPlanById(id)
+  }
+
   async deleteDayPlan(id: string) {
     const db = getDatabase()
     await db.delete(schema.dayPlans).where(eq(schema.dayPlans.id, id))
   }
 
-  async createDayPlanBlock(dayPlanId: string, startDt: Date, endDt: Date, label: string, linkedTaskId?: string, notes?: string) {
+  async createDayPlanBlock(
+    dayPlanId: string,
+    startDt: Date,
+    endDt: Date,
+    label: string,
+    kind: 'calendar_fixed' | 'task' | 'focus' | 'break' | 'buffer' | 'admin',
+    locked: boolean,
+    source?: { type: 'calendar'; eventId: string },
+    linkedTaskId?: string,
+    notes?: string
+  ) {
     const db = getDatabase()
     const id = uuidv4()
 
@@ -419,6 +503,9 @@ export class Repository {
       startDt,
       endDt,
       label,
+      kind,
+      locked,
+      source: source ? JSON.stringify(source) : null,
       linkedTaskId,
       notes
     })
@@ -433,11 +520,43 @@ export class Repository {
       .orderBy(schema.dayPlanBlocks.startDt)
   }
 
-  async updateDayPlanBlock(id: string, startDt: Date, endDt: Date, label: string, notes?: string) {
+  async getDayPlanBlock(id: string) {
     const db = getDatabase()
-    await db.update(schema.dayPlanBlocks)
-      .set({ startDt, endDt, label, notes })
+    const result = await db.select().from(schema.dayPlanBlocks)
       .where(eq(schema.dayPlanBlocks.id, id))
+      .limit(1)
+    return result[0]
+  }
+
+  async updateDayPlanBlock(
+    id: string,
+    updates: {
+      startDt?: Date
+      endDt?: Date
+      label?: string
+      kind?: 'calendar_fixed' | 'task' | 'focus' | 'break' | 'buffer' | 'admin'
+      locked?: boolean
+      source?: { type: 'calendar'; eventId: string } | null
+      linkedTaskId?: string
+      notes?: string
+    }
+  ) {
+    const db = getDatabase()
+    const setValues: any = {}
+    if (updates.startDt !== undefined) setValues.startDt = updates.startDt
+    if (updates.endDt !== undefined) setValues.endDt = updates.endDt
+    if (updates.label !== undefined) setValues.label = updates.label
+    if (updates.kind !== undefined) setValues.kind = updates.kind
+    if (updates.locked !== undefined) setValues.locked = updates.locked
+    if (updates.source !== undefined) setValues.source = updates.source ? JSON.stringify(updates.source) : null
+    if (updates.linkedTaskId !== undefined) setValues.linkedTaskId = updates.linkedTaskId
+    if (updates.notes !== undefined) setValues.notes = updates.notes
+
+    await db.update(schema.dayPlanBlocks)
+      .set(setValues)
+      .where(eq(schema.dayPlanBlocks.id, id))
+
+    return this.getDayPlanBlock(id)
   }
 
   async deleteDayPlanBlock(id: string) {

@@ -122,13 +122,28 @@ export interface TimeBlock {
   startDt: Date
   endDt: Date
   label: string
+  kind: 'calendar_fixed' | 'task' | 'focus' | 'break' | 'buffer' | 'admin'
+  locked: boolean
+  source?: { type: 'calendar'; eventId: string }
   linkedTaskId?: string
   notes?: string
+}
+
+export interface PlanningProfile {
+  id: string
+  name: string
+  instructionsText: string
+  constraintsJson?: string
+  isDefault: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface DayPlan {
   id: string
   date: string
+  status: 'draft' | 'committed'
+  planningProfileId?: string
   createdAt: Date
 }
 
@@ -249,11 +264,20 @@ declare global {
         getEventsForDate: (dateStr: string) => Promise<CalendarEvent[]>
       }
       planning: {
+        // Legacy (deprecated)
         generate: (dateStr: string, config?: any) => Promise<TimeBlock[]>
         save: (dateStr: string, blocks: TimeBlock[]) => Promise<string>
         get: (dateStr: string) => Promise<{ plan: DayPlan; blocks: TimeBlock[] } | null>
         updateBlock: (blockId: string, updates: any) => Promise<void>
         deleteBlock: (blockId: string) => Promise<void>
+      }
+      planningProfiles: {
+        list: () => Promise<PlanningProfile[]>
+        get: (id: string) => Promise<PlanningProfile>
+        create: (name: string, instructionsText: string, constraintsJson?: string) => Promise<PlanningProfile>
+        update: (id: string, name: string, instructionsText: string, constraintsJson?: string) => Promise<PlanningProfile>
+        delete: (id: string) => Promise<void>
+        setDefault: (id: string) => Promise<void>
       }
       settings: {
         get: (key: string) => Promise<string | null>

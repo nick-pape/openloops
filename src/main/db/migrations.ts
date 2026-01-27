@@ -359,6 +359,87 @@ export const migrations: Migration[] = [
 
       console.log('[Migration] Completed: add-task-and-decision-extraction-job-types')
     }
+  },
+  {
+    version: 7,
+    name: 'add-planner-draft-commit-workflow',
+    up: (db) => {
+      console.log('[Migration] Running: add-planner-draft-commit-workflow')
+
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        -- Create planning_profiles table
+        CREATE TABLE IF NOT EXISTS planning_profiles (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          instructions_text TEXT NOT NULL,
+          constraints_json TEXT,
+          is_default INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        -- Recreate day_plans with status and planningProfileId
+        CREATE TABLE day_plans_new (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL UNIQUE,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'committed')),
+          planning_profile_id TEXT REFERENCES planning_profiles(id) ON DELETE SET NULL,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        -- Copy existing data (default to 'committed' for existing plans)
+        INSERT INTO day_plans_new (id, date, status, planning_profile_id, created_at)
+        SELECT id, date, 'committed', NULL, created_at FROM day_plans;
+
+        -- Recreate day_plan_blocks with new fields
+        CREATE TABLE day_plan_blocks_new (
+          id TEXT PRIMARY KEY,
+          day_plan_id TEXT NOT NULL REFERENCES day_plans_new(id) ON DELETE CASCADE,
+          start_dt INTEGER NOT NULL,
+          end_dt INTEGER NOT NULL,
+          label TEXT NOT NULL,
+          kind TEXT NOT NULL DEFAULT 'focus' CHECK(kind IN ('calendar_fixed', 'task', 'focus', 'break', 'buffer', 'admin')),
+          locked INTEGER NOT NULL DEFAULT 0,
+          source TEXT,
+          linked_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+          notes TEXT
+        );
+
+        -- Copy existing blocks, inferring kind from linkedTaskId
+        INSERT INTO day_plan_blocks_new (id, day_plan_id, start_dt, end_dt, label, kind, locked, source, linked_task_id, notes)
+        SELECT
+          id,
+          day_plan_id,
+          start_dt,
+          end_dt,
+          label,
+          CASE WHEN linked_task_id IS NOT NULL THEN 'task' ELSE 'focus' END,
+          0,
+          NULL,
+          linked_task_id,
+          notes
+        FROM day_plan_blocks;
+
+        -- Drop old tables
+        DROP TABLE day_plan_blocks;
+        DROP TABLE day_plans;
+
+        -- Rename new tables
+        ALTER TABLE day_plans_new RENAME TO day_plans;
+        ALTER TABLE day_plan_blocks_new RENAME TO day_plan_blocks;
+
+        -- Create indexes
+        CREATE INDEX IF NOT EXISTS idx_day_plans_date ON day_plans(date);
+        CREATE INDEX IF NOT EXISTS idx_day_plans_status ON day_plans(status);
+        CREATE INDEX IF NOT EXISTS idx_day_plan_blocks_plan ON day_plan_blocks(day_plan_id);
+
+        COMMIT;
+      `)
+
+      console.log('[Migration] Completed: add-planner-draft-commit-workflow')
+    }
   }
 ]
 

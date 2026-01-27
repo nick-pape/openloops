@@ -12,6 +12,16 @@ export type DomainEvent =
   | { type: 'task.updated'; taskId: string; status?: string }
   | { type: 'task.deleted'; taskId: string }
   | { type: 'summary.generated'; projectId: string; summaryId: string }
+  | { type: 'planning.profile.created'; profileId: string; name: string }
+  | { type: 'planning.profile.updated'; profileId: string }
+  | { type: 'planning.profile.set_default'; profileId: string }
+  | { type: 'planning.profile.deleted'; profileId: string }
+  | { type: 'plan.draft.created'; planId: string; date: string }
+  | { type: 'plan.draft.discarded'; planId: string; date: string }
+  | { type: 'plan.committed'; planId: string; date: string; blockCount: number }
+  | { type: 'plan.block.added'; planId: string; blockId: string; kind: string }
+  | { type: 'plan.block.updated'; planId: string; blockId: string }
+  | { type: 'plan.block.deleted'; planId: string; blockId: string }
 
 /**
  * Domain Event Emitter

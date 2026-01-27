@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { projectCommands, captureCommands, taskCommands } from '../../domain/commands'
+import { projectCommands, captureCommands, taskCommands, plannerCommands, planningProfileCommands } from '../../domain/commands'
+import { repository } from '../../db/repository'
 
 /**
  * MCP Tool Registry
@@ -317,5 +318,32 @@ export const allTools: ToolEntry[] = [
   { definition: tasksListTool, handler: tasksList },
   { definition: tasksGetTool, handler: tasksGet },
   { definition: tasksCreateTool, handler: tasksCreate },
-  { definition: tasksUpdateTool, handler: tasksUpdate }
+  { definition: tasksUpdateTool, handler: tasksUpdate },
+  { definition: tasksListCandidatesForDayTool, handler: tasksListCandidatesForDay },
+
+  // Calendar
+  { definition: calendarDayEventsGetTool, handler: calendarDayEventsGet },
+
+  // Planning Profiles
+  { definition: planningProfilesListTool, handler: planningProfilesList },
+  { definition: planningProfilesGetTool, handler: planningProfilesGet },
+  { definition: planningProfilesCreateTool, handler: planningProfilesCreate },
+  { definition: planningProfilesUpdateTool, handler: planningProfilesUpdate },
+  { definition: planningProfilesDeleteTool, handler: planningProfilesDelete },
+
+  // Planner - Draft Lifecycle
+  { definition: plannerDayGetTool, handler: plannerDayGet },
+  { definition: plannerDraftCreateTool, handler: plannerDraftCreate },
+  { definition: plannerDraftGetTool, handler: plannerDraftGet },
+  { definition: plannerDraftDiscardTool, handler: plannerDraftDiscard },
+
+  // Planner - Block Primitives
+  { definition: plannerBlockAddTool, handler: plannerBlockAdd },
+  { definition: plannerBlockUpdateTool, handler: plannerBlockUpdate },
+  { definition: plannerBlockMoveTool, handler: plannerBlockMove },
+  { definition: plannerBlockDeleteTool, handler: plannerBlockDelete },
+
+  // Planner - Validation & Commit
+  { definition: plannerDraftValidateTool, handler: plannerDraftValidate },
+  { definition: plannerDraftCommitTool, handler: plannerDraftCommit }
 ]

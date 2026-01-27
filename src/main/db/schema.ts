@@ -71,9 +71,21 @@ export const calendarEvents = sqliteTable('calendar_events', {
   importedAt: integer('imported_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`)
 })
 
+export const planningProfiles = sqliteTable('planning_profiles', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  instructionsText: text('instructions_text').notNull(),
+  constraintsJson: text('constraints_json'),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`)
+})
+
 export const dayPlans = sqliteTable('day_plans', {
   id: text('id').primaryKey(),
   date: text('date').notNull().unique(),
+  status: text('status', { enum: ['draft', 'committed'] }).notNull().default('draft'),
+  planningProfileId: text('planning_profile_id').references(() => planningProfiles.id, { onDelete: 'set null' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`)
 })
 
@@ -83,6 +95,9 @@ export const dayPlanBlocks = sqliteTable('day_plan_blocks', {
   startDt: integer('start_dt', { mode: 'timestamp' }).notNull(),
   endDt: integer('end_dt', { mode: 'timestamp' }).notNull(),
   label: text('label').notNull(),
+  kind: text('kind', { enum: ['calendar_fixed', 'task', 'focus', 'break', 'buffer', 'admin'] }).notNull().default('focus'),
+  locked: integer('locked', { mode: 'boolean' }).notNull().default(false),
+  source: text('source'), // JSON: { type: 'calendar', eventId: string } for calendar_fixed blocks
   linkedTaskId: text('linked_task_id').references(() => tasks.id, { onDelete: 'set null' }),
   notes: text('notes')
 })

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { CalendarEvent, Task, TimeBlock } from '../../types'
+import { CalendarEvent, Task, TimeBlock, DayPlan } from '../../types'
 import './PlannerView.css'
 
 export function PlannerView() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [plan, setPlan] = useState<DayPlan | null>(null)
   const [blocks, setBlocks] = useState<TimeBlock[]>([])
   const [loading, setLoading] = useState(false)
   const [showICSInput, setShowICSInput] = useState(false)
@@ -20,19 +21,34 @@ export function PlannerView() {
     loadData()
   }, [selectedDate])
 
+  // Subscribe to domain events for live updates
+  useEffect(() => {
+    const handleDomainEvent = (event: any) => {
+      // Reload plan if it's affected by this event
+      if (event.type.startsWith('plan.') || event.type.startsWith('planning.')) {
+        loadData()
+      }
+    }
+
+    window.electron.onDomainEvent(handleDomainEvent)
+    return () => window.electron.offDomainEvent(handleDomainEvent)
+  }, [selectedDate])
+
   const loadData = async () => {
     setLoading(true)
     try {
       const evts = await window.electron.calendar.getEventsForDate(selectedDate)
       const tsks = await window.electron.tasks.getOpen()
-      const plan = await window.electron.planning.get(selectedDate)
+      const planData = await window.electron.planning.get(selectedDate)
 
       setEvents(evts)
       setTasks(tsks)
 
-      if (plan) {
-        setBlocks(plan.blocks)
+      if (planData) {
+        setPlan(planData.plan)
+        setBlocks(planData.blocks)
       } else {
+        setPlan(null)
         setBlocks([])
       }
     } catch (error) {
@@ -63,27 +79,21 @@ export function PlannerView() {
     }
   }
 
-  const handleGeneratePlan = async () => {
-    setLoading(true)
+  const handleDiscardDraft = async () => {
+    if (!confirm('Discard this draft plan? This cannot be undone.')) return
+
     try {
-      const generatedBlocks = await window.electron.planning.generate(selectedDate)
-      setBlocks(generatedBlocks)
+      setLoading(true)
+      // Delete the draft plan
+      if (plan?.id) {
+        await window.electron.planning.delete(plan.id)
+      }
+      await loadData()
     } catch (error) {
-      console.error('Failed to generate plan:', error)
-      alert('Failed to generate plan')
+      console.error('Failed to discard draft:', error)
+      alert('Failed to discard draft')
     }
     setLoading(false)
-  }
-
-  const handleSavePlan = async () => {
-    try {
-      await window.electron.planning.save(selectedDate, blocks)
-      await loadData()
-      alert('Plan saved successfully')
-    } catch (error) {
-      console.error('Failed to save plan:', error)
-      alert('Failed to save plan')
-    }
   }
 
   const handleCreateTask = async () => {
@@ -107,6 +117,18 @@ export function PlannerView() {
   }
 
   const handleEditBlock = (block: TimeBlock) => {
+    // Can't edit locked blocks
+    if (block.locked) {
+      alert('This block is locked and cannot be edited')
+      return
+    }
+
+    // Can't edit committed plans
+    if (plan?.status === 'committed') {
+      alert('Cannot edit blocks in a committed plan')
+      return
+    }
+
     setEditingBlock({ ...block })
   }
 
@@ -133,6 +155,40 @@ export function PlannerView() {
     }
   }
 
+  // Build unified timeline combining events and blocks
+  const timelineItems = [
+    ...events.map(event => ({
+      type: 'event' as const,
+      startDt: event.startDt,
+      endDt: event.endDt,
+      title: event.title,
+      data: event
+    })),
+    ...blocks.map(block => ({
+      type: 'block' as const,
+      startDt: block.startDt,
+      endDt: block.endDt,
+      title: block.label,
+      data: block
+    }))
+  ].sort((a, b) => new Date(a.startDt).getTime() - new Date(b.startDt).getTime())
+
+  const getBlockKindIcon = (kind: string) => {
+    switch (kind) {
+      case 'task': return '✓'
+      case 'focus': return '🎯'
+      case 'break': return '☕'
+      case 'buffer': return '⏸'
+      case 'admin': return '📋'
+      case 'calendar_fixed': return '📅'
+      default: return '•'
+    }
+  }
+
+  const getBlockKindClass = (kind: string) => {
+    return `block-kind-${kind}`
+  }
+
   return (
     <div className="planner-view">
       <div className="planner-header">
@@ -143,6 +199,19 @@ export function PlannerView() {
           onChange={(e) => setSelectedDate(e.target.value)}
         />
       </div>
+
+      {plan && (
+        <div className={`plan-status plan-status-${plan.status}`}>
+          <span className="status-label">
+            {plan.status === 'draft' ? '📝 Draft Plan' : '✅ Committed Plan'}
+          </span>
+          {plan.status === 'draft' && (
+            <button className="discard-btn" onClick={handleDiscardDraft} disabled={loading}>
+              Discard Draft
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="planner-sections">
         <div className="planner-section">
@@ -212,46 +281,87 @@ export function PlannerView() {
 
       <div className="plan-section">
         <div className="section-header">
-          <h2>Generated Plan</h2>
-          <div>
-            <button onClick={handleGeneratePlan} disabled={loading}>
-              {loading ? 'Generating...' : 'Generate Plan'}
-            </button>
-            {blocks.length > 0 && (
-              <button onClick={handleSavePlan}>Commit Plan</button>
-            )}
+          <h2>Timeline</h2>
+          <div className="timeline-legend">
+            <span className="legend-item">📅 Calendar Event</span>
+            <span className="legend-item">✓ Task Block</span>
+            <span className="legend-item">🎯 Focus Block</span>
+            <span className="legend-item">🔒 Locked</span>
           </div>
         </div>
 
-        <div className="blocks-list">
-          {blocks.map((block, index) => (
-            <div key={block.id || index} className="block-card">
-              <div className="block-time">
-                {new Date(block.startDt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}{' '}
-                -{' '}
-                {new Date(block.endDt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </div>
-              <div className="block-label">{block.label}</div>
-              {block.notes && <div className="block-notes">{block.notes}</div>}
-              {block.id && (
-                <div className="block-actions">
-                  <button onClick={() => handleEditBlock(block)}>Edit</button>
-                  <button onClick={() => handleDeleteBlock(block.id!)}>Delete</button>
+        {!plan && (
+          <div className="empty-state">
+            <p>No plan for this day yet.</p>
+            <p className="chat-hint">Ask the AI assistant to create a plan for you!</p>
+          </div>
+        )}
+
+        {plan && timelineItems.length === 0 && (
+          <div className="empty-state">
+            <p>Plan is empty.</p>
+            <p className="chat-hint">Ask the AI assistant to add blocks to your plan.</p>
+          </div>
+        )}
+
+        <div className="timeline">
+          {timelineItems.map((item, index) => {
+            if (item.type === 'event') {
+              const event = item.data as CalendarEvent
+              return (
+                <div key={`event-${event.id}`} className="timeline-item timeline-event">
+                  <div className="timeline-time">
+                    {new Date(event.startDt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}{' '}
+                    -{' '}
+                    {new Date(event.endDt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                  <div className="timeline-content">
+                    <span className="timeline-icon">📅</span>
+                    <span className="timeline-label">{event.title}</span>
+                    <span className="timeline-badge">Calendar Event</span>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
-          {blocks.length === 0 && (
-            <div className="empty-state">
-              No plan generated yet. Click Generate Plan to create one.
-            </div>
-          )}
+              )
+            } else {
+              const block = item.data as TimeBlock
+              return (
+                <div
+                  key={`block-${block.id || index}`}
+                  className={`timeline-item timeline-block ${getBlockKindClass(block.kind)}`}
+                >
+                  <div className="timeline-time">
+                    {new Date(block.startDt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}{' '}
+                    -{' '}
+                    {new Date(block.endDt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </div>
+                  <div className="timeline-content">
+                    <span className="timeline-icon">{getBlockKindIcon(block.kind)}</span>
+                    <span className="timeline-label">{block.label}</span>
+                    {block.locked && <span className="timeline-badge timeline-locked">🔒 Locked</span>}
+                    {block.notes && <div className="timeline-notes">{block.notes}</div>}
+                  </div>
+                  {block.id && plan?.status !== 'committed' && !block.locked && (
+                    <div className="timeline-actions">
+                      <button className="action-btn" onClick={() => handleEditBlock(block)}>Edit</button>
+                      <button className="action-btn delete-btn" onClick={() => handleDeleteBlock(block.id!)}>Delete</button>
+                    </div>
+                  )}
+                </div>
+              )
+            }
+          })}
         </div>
       </div>
 
