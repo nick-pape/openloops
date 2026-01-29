@@ -594,11 +594,11 @@ export async function plannerDraftDiscard(args: z.infer<typeof plannerDraftDisca
 
 export const plannerBlockAddTool = {
   name: 'planner_block_add',
-  description: 'Add a time block to a draft plan',
+  description: 'Add a time block to a draft plan. Times should be in LOCAL timezone (will be converted to UTC automatically).',
   inputSchema: z.object({
     draftPlanId: z.string().uuid('Invalid plan ID format'),
-    start: z.string().datetime({ message: 'Start must be ISO datetime' }),
-    end: z.string().datetime({ message: 'End must be ISO datetime' }),
+    start: z.string().describe('Start time in ISO format WITHOUT timezone (e.g., "2026-01-29T09:00:00"). Uses local timezone.'),
+    end: z.string().describe('End time in ISO format WITHOUT timezone (e.g., "2026-01-29T17:00:00"). Uses local timezone.'),
     title: z.string().min(1, 'Title is required'),
     kind: z.enum(['calendar_fixed', 'task', 'focus', 'break', 'buffer', 'admin']),
     locked: z.boolean().default(false),
@@ -629,11 +629,11 @@ export async function plannerBlockAdd(args: z.infer<typeof plannerBlockAddTool.i
 
 export const plannerBlockUpdateTool = {
   name: 'planner_block_update',
-  description: 'Update a time block in a draft plan',
+  description: 'Update a time block in a draft plan. Times should be in LOCAL timezone (will be converted to UTC automatically).',
   inputSchema: z.object({
     blockId: z.string().uuid('Invalid block ID format'),
-    start: z.string().datetime({ message: 'Start must be ISO datetime' }).optional(),
-    end: z.string().datetime({ message: 'End must be ISO datetime' }).optional(),
+    start: z.string().describe('Start time in ISO format WITHOUT timezone. Uses local timezone.').optional(),
+    end: z.string().describe('End time in ISO format WITHOUT timezone. Uses local timezone.').optional(),
     title: z.string().optional(),
     kind: z.enum(['calendar_fixed', 'task', 'focus', 'break', 'buffer', 'admin']).optional(),
     locked: z.boolean().optional(),
@@ -663,11 +663,11 @@ export async function plannerBlockUpdate(args: z.infer<typeof plannerBlockUpdate
 
 export const plannerBlockMoveTool = {
   name: 'planner_block_move',
-  description: 'Move a time block to a new time slot',
+  description: 'Move a time block to a new time slot. Times should be in LOCAL timezone (will be converted to UTC automatically).',
   inputSchema: z.object({
     blockId: z.string().uuid('Invalid block ID format'),
-    start: z.string().datetime({ message: 'Start must be ISO datetime' }),
-    end: z.string().datetime({ message: 'End must be ISO datetime' })
+    start: z.string().describe('Start time in ISO format WITHOUT timezone. Uses local timezone.'),
+    end: z.string().describe('End time in ISO format WITHOUT timezone. Uses local timezone.')
   })
 }
 

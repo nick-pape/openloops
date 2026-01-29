@@ -751,12 +751,11 @@ Keep it concise and actionable.`
           systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
           systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
           systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
-          systemPrompt += `   - CRITICAL: Timestamps MUST be in ISO format with Z suffix: YYYY-MM-DDTHH:mm:ssZ\n`
-          systemPrompt += `   - IMPORTANT: When user says a time like "9am", they mean LOCAL time (${offsetFormatted})\n`
-          systemPrompt += `   - You MUST convert local times to UTC before creating blocks\n`
-          systemPrompt += `   - Example conversion: User says "9am" → ${offsetHours >= 0 ? 'add' : 'subtract'} ${Math.abs(offsetHours)} hours → ${9 - offsetHours}:00 UTC\n`
-          systemPrompt += `   - Example: "9am local" = "${today}T${String(9 - offsetHours).padStart(2, '0')}:00:00Z"\n`
-          systemPrompt += `   - Example: "5pm local" = "${today}T${String(17 - offsetHours).padStart(2, '0')}:00:00Z"\n`
+          systemPrompt += `   - CRITICAL: Use ISO datetime format WITHOUT timezone suffix: YYYY-MM-DDTHH:mm:ss\n`
+          systemPrompt += `   - Times are in user's LOCAL timezone (${offsetFormatted})\n`
+          systemPrompt += `   - When user says "9am", use: "${today}T09:00:00" (NO Z suffix!)\n`
+          systemPrompt += `   - When user says "5pm", use: "${today}T17:00:00" (NO Z suffix!)\n`
+          systemPrompt += `   - The system will automatically convert to UTC for storage\n`
           systemPrompt += `   - locked: Set to FALSE by default - let user lock blocks manually via UI\n`
           systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
           systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
