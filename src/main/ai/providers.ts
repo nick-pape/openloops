@@ -290,7 +290,9 @@ Example: ["meeting", "project planning", "deadline", "budget"]
 
 Only output the JSON array, nothing else.`
 
-    const requestParams = {
+    // Note: response_format may not be supported by all models (especially Ollama)
+    // Try with it first, but the prompt is designed to work without it too
+    const requestParams: any = {
       model: this.model,
       messages: [
         {
@@ -299,8 +301,13 @@ Only output the JSON array, nothing else.`
         }
       ],
       max_tokens: 100,
-      temperature: 0.3,
-      response_format: { type: 'json_object' }
+      temperature: 0.3
+    }
+
+    // Only add response_format for models that support it (OpenAI-compatible APIs)
+    // Ollama doesn't support this parameter
+    if (this.baseUrl.includes('openai.com')) {
+      requestParams.response_format = { type: 'json_object' }
     }
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -319,17 +326,37 @@ Only output the JSON array, nothing else.`
     const data = await response.json()
     const durationMs = Date.now() - startTime
 
-    // Parse the response - could be array directly or wrapped in object
+    // Log the raw response for debugging
+    const rawContent = data.choices[0].message.content
+    console.log('[LLM] Tag generation raw response:', rawContent ? rawContent.slice(0, 300) : 'EMPTY')
+
+    // Parse the response - could be array directly, wrapped in object, or markdown code block
     let tags: string[] = []
     try {
-      const parsed = JSON.parse(data.choices[0].message.content)
-      if (Array.isArray(parsed)) {
-        tags = parsed
-      } else if (parsed.tags && Array.isArray(parsed.tags)) {
-        tags = parsed.tags
+      if (!rawContent || rawContent.trim() === '') {
+        console.error('[LLM] Empty content returned for tag generation')
+        tags = []
+      } else {
+        // Try to extract JSON from markdown code blocks if present
+        let jsonContent = rawContent
+        const codeBlockMatch = rawContent.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+        if (codeBlockMatch) {
+          jsonContent = codeBlockMatch[1]
+          console.log('[LLM] Extracted JSON from code block')
+        }
+
+        const parsed = JSON.parse(jsonContent)
+        if (Array.isArray(parsed)) {
+          tags = parsed
+        } else if (parsed.tags && Array.isArray(parsed.tags)) {
+          tags = parsed.tags
+        } else {
+          console.error('[LLM] Unexpected tag response format:', JSON.stringify(parsed).slice(0, 200))
+        }
       }
     } catch (error) {
       console.error('[LLM] Failed to parse tags JSON:', error)
+      console.error('[LLM] Raw content was:', rawContent ? rawContent.slice(0, 500) : 'EMPTY')
       tags = []
     }
 

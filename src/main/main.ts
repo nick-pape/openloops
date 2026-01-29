@@ -177,19 +177,9 @@ app.whenReady().then(async () => {
       }
     }
 
-    if (event.type === 'capture.updated') {
-      // Re-generate tags when text/decision captures are updated
-      const capture = await repository.getCapture(event.captureId)
-      if (capture && (capture.type === 'text' || capture.type === 'decision') && capture.bodyText) {
-        logger.info(`[App] Capture updated, re-generating tags for ${capture.type} capture: ${event.captureId}`)
-        await jobManager.enqueueTagGeneration(
-          event.captureId,
-          capture.type,
-          capture.title || 'Untitled',
-          capture.bodyText
-        )
-      }
-    }
+    // Note: Do NOT listen to capture.updated here - it creates an infinite loop!
+    // Tag generation jobs emit capture.updated, which would trigger more tag generation.
+    // Tags are only generated once on capture creation.
   })
 
   // Start MCP stdio server (Phase 3)
