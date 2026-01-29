@@ -159,6 +159,39 @@ app.whenReady().then(async () => {
   initDatabase()
   await jobManager.start()
 
+  // Subscribe to domain events for tag generation
+  domainEvents.on('domain-event', async (event: any) => {
+    if (event.type === 'capture.created') {
+      // Auto-generate tags for text and decision captures
+      if (event.captureType === 'text' || event.captureType === 'decision') {
+        logger.info(`[App] Capture created, enqueueing tag generation for ${event.captureType} capture: ${event.captureId}`)
+        const capture = await repository.getCapture(event.captureId)
+        if (capture && capture.bodyText) {
+          await jobManager.enqueueTagGeneration(
+            event.captureId,
+            event.captureType,
+            capture.title || 'Untitled',
+            capture.bodyText
+          )
+        }
+      }
+    }
+
+    if (event.type === 'capture.updated') {
+      // Re-generate tags when text/decision captures are updated
+      const capture = await repository.getCapture(event.captureId)
+      if (capture && (capture.type === 'text' || capture.type === 'decision') && capture.bodyText) {
+        logger.info(`[App] Capture updated, re-generating tags for ${capture.type} capture: ${event.captureId}`)
+        await jobManager.enqueueTagGeneration(
+          event.captureId,
+          capture.type,
+          capture.title || 'Untitled',
+          capture.bodyText
+        )
+      }
+    }
+  })
+
   // Start MCP stdio server (Phase 3)
   // NOTE: This redirects stdout/stderr for JSON-RPC, so we must use logger.* instead of console.log
   logger.info('[MCP] Starting MCP stdio server...')
@@ -850,8 +883,11 @@ Keep it concise and actionable.`
 
       systemPrompt += `\nRules:
 - Keep responses SHORT (1-3 sentences). Be concise.
-- Use tools when needed to answer questions or perform actions.
-- If you don't have info to answer a question, use a tool to find it.`
+- ONLY use tools when you need to:
+  * Answer questions about the user's existing data (use get_captures, tasks_list, etc.)
+  * Perform actions (create, update, delete)
+- DON'T call search/list tools when creating new content (poems, notes, ideas, etc.)
+- When user asks you to create something, just create it directly without searching first.`
 
       // Build conversation messages (without system - that goes in systemPrompt)
       const aiMessages: ModelMessage[] = messages.map((msg: any) => ({

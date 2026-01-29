@@ -114,11 +114,38 @@ export class CaptureCommands {
     return repository.getCapture(id)
   }
 
-  async searchCaptures(projectId: string, type?: string) {
-    const captures = await repository.getCapturesWithFlags(projectId)
+  async searchCaptures(
+    projectId: string,
+    type?: string,
+    query?: string,
+    startDate?: Date,
+    endDate?: Date
+  ) {
+    let captures = await repository.getCapturesWithFlags(projectId)
+
+    // Filter by type
     if (type) {
-      return captures.filter(c => c.type === type)
+      captures = captures.filter(c => c.type === type)
     }
+
+    // Filter by text search (case-insensitive search on title and bodyText)
+    if (query) {
+      const lowerQuery = query.toLowerCase()
+      captures = captures.filter(c => {
+        const titleMatch = c.title?.toLowerCase().includes(lowerQuery)
+        const bodyMatch = c.bodyText?.toLowerCase().includes(lowerQuery)
+        return titleMatch || bodyMatch
+      })
+    }
+
+    // Filter by date range
+    if (startDate) {
+      captures = captures.filter(c => new Date(c.createdAt) >= startDate)
+    }
+    if (endDate) {
+      captures = captures.filter(c => new Date(c.createdAt) <= endDate)
+    }
+
     return captures
   }
 

@@ -100,34 +100,55 @@ export async function projectsGetSummary(args: z.infer<typeof projectsGetSummary
 // Captures Tools
 // ============================================================================
 
-export const capturesSearchTool = {
-  name: 'captures_search',
-  description: 'Search captures in a project, optionally filter by type',
+export const getCapturesTool = {
+  name: 'get_captures',
+  description: 'Get captures in a project with optional filters (text search, type, date range). Returns metadata only - use get_capture_by_id for full content.',
   inputSchema: z.object({
     projectId: z.string().uuid('Invalid project ID format'),
-    type: z.enum(['text', 'image', 'audio', 'chat', 'decision']).optional()
+    query: z.string().optional().describe('Text search on title and body content'),
+    type: z.enum(['text', 'image', 'audio', 'chat', 'decision', 'link']).optional(),
+    startDate: z.string().datetime().optional().describe('Filter captures created after this date'),
+    endDate: z.string().datetime().optional().describe('Filter captures created before this date')
   })
 }
 
-export async function capturesSearch(args: z.infer<typeof capturesSearchTool.inputSchema>) {
-  const captures = await captureCommands.searchCaptures(args.projectId, args.type)
+export async function getCaptures(args: z.infer<typeof getCapturesTool.inputSchema>) {
+  console.log('[MCP] get_captures called with:', JSON.stringify(args, null, 2))
+  const captures = await captureCommands.searchCaptures(
+    args.projectId,
+    args.type,
+    args.query,
+    args.startDate ? new Date(args.startDate) : undefined,
+    args.endDate ? new Date(args.endDate) : undefined
+  )
+
+  // Return metadata only - not full content
+  const metadata = captures.map(c => ({
+    id: c.id,
+    title: c.title,
+    type: c.type,
+    tags: c.tags,
+    createdAt: c.createdAt
+  }))
+
   return {
     content: [{
       type: 'text' as const,
-      text: JSON.stringify(captures, null, 2)
+      text: JSON.stringify(metadata, null, 2)
     }]
   }
 }
 
-export const capturesGetTool = {
-  name: 'captures_get',
-  description: 'Get a specific capture by ID with full content',
+export const getCaptureByIdTool = {
+  name: 'get_capture_by_id',
+  description: 'Get a specific capture by ID with full content (title, bodyText, filePath, etc.)',
   inputSchema: z.object({
     captureId: z.string().uuid('Invalid capture ID format')
   })
 }
 
-export async function capturesGet(args: z.infer<typeof capturesGetTool.inputSchema>) {
+export async function getCaptureById(args: z.infer<typeof getCaptureByIdTool.inputSchema>) {
+  console.log('[MCP] get_capture_by_id called with:', JSON.stringify(args, null, 2))
   const capture = await captureCommands.getCapture(args.captureId)
   if (!capture) {
     throw new Error(`Capture ${args.captureId} not found`)
@@ -151,16 +172,25 @@ export const capturesCreateTextTool = {
 }
 
 export async function capturesCreateText(args: z.infer<typeof capturesCreateTextTool.inputSchema>) {
+  console.log('[MCP] captures_create_text called with:', JSON.stringify({ projectId: args.projectId, title: args.title, bodyTextLength: args.bodyText.length }, null, 2))
   const capture = await captureCommands.createCapture({
     projectId: args.projectId,
     type: 'text',
     title: args.title || null,
     bodyText: args.bodyText
   })
+
+  // Return simplified response
   return {
     content: [{
       type: 'text' as const,
-      text: JSON.stringify(capture, null, 2)
+      text: JSON.stringify({
+        success: true,
+        captureId: capture.id,
+        title: capture.title || 'Untitled',
+        type: capture.type,
+        message: 'Text capture created successfully'
+      }, null, 2)
     }]
   }
 }
@@ -176,16 +206,25 @@ export const capturesCreateDecisionTool = {
 }
 
 export async function capturesCreateDecision(args: z.infer<typeof capturesCreateDecisionTool.inputSchema>) {
+  console.log('[MCP] captures_create_decision called with:', JSON.stringify({ projectId: args.projectId, title: args.title, bodyTextLength: args.bodyText.length }, null, 2))
   const capture = await captureCommands.createCapture({
     projectId: args.projectId,
     type: 'decision',
     title: args.title,
     bodyText: args.bodyText
   })
+
+  // Return simplified response
   return {
     content: [{
       type: 'text' as const,
-      text: JSON.stringify(capture, null, 2)
+      text: JSON.stringify({
+        success: true,
+        captureId: capture.id,
+        title: capture.title,
+        type: capture.type,
+        message: 'Decision capture created successfully'
+      }, null, 2)
     }]
   }
 }
@@ -745,8 +784,8 @@ export const allTools: ToolEntry[] = [
   { definition: projectsGetSummaryTool, handler: projectsGetSummary },
 
   // Captures
-  { definition: capturesSearchTool, handler: capturesSearch },
-  { definition: capturesGetTool, handler: capturesGet },
+  { definition: getCapturesTool, handler: getCaptures },
+  { definition: getCaptureByIdTool, handler: getCaptureById },
   { definition: capturesCreateTextTool, handler: capturesCreateText },
   { definition: capturesCreateDecisionTool, handler: capturesCreateDecision },
 
