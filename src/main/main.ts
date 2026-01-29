@@ -735,8 +735,15 @@ Keep it concise and actionable.`
         }
         case 'planner': {
           const today = new Date().toISOString().split('T')[0]
+          // Get user's timezone offset
+          const offsetMinutes = new Date().getTimezoneOffset()
+          const offsetHours = -offsetMinutes / 60 // Negative because getTimezoneOffset returns negative for positive offsets
+          const offsetSign = offsetHours >= 0 ? '+' : '-'
+          const offsetFormatted = `UTC${offsetSign}${Math.abs(offsetHours)}`
+
           systemPrompt += `Current Context: Day Planner\n\n`
-          systemPrompt += `Today's date: ${today}\n\n`
+          systemPrompt += `Today's date: ${today}\n`
+          systemPrompt += `User timezone: ${offsetFormatted}\n\n`
           systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
           systemPrompt += `## Workflow:\n`
           systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
@@ -744,10 +751,12 @@ Keep it concise and actionable.`
           systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
           systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
           systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
-          systemPrompt += `   - CRITICAL: Use ISO datetime format with Z: YYYY-MM-DDTHH:mm:ssZ\n`
-          systemPrompt += `   - Example: "2026-01-27T09:00:00Z" for 9am, "2026-01-27T17:00:00Z" for 5pm\n`
-          systemPrompt += `   - MUST end with 'Z' (UTC timezone) - this is required by the validator\n`
-          systemPrompt += `   - Build datetime: date + "T" + time + "Z" (e.g., "2026-01-27" + "T" + "09:00:00" + "Z")\n`
+          systemPrompt += `   - CRITICAL: Timestamps MUST be in ISO format with Z suffix: YYYY-MM-DDTHH:mm:ssZ\n`
+          systemPrompt += `   - IMPORTANT: When user says a time like "9am", they mean LOCAL time (${offsetFormatted})\n`
+          systemPrompt += `   - You MUST convert local times to UTC before creating blocks\n`
+          systemPrompt += `   - Example conversion: User says "9am" → ${offsetHours >= 0 ? 'add' : 'subtract'} ${Math.abs(offsetHours)} hours → ${9 - offsetHours}:00 UTC\n`
+          systemPrompt += `   - Example: "9am local" = "${today}T${String(9 - offsetHours).padStart(2, '0')}:00:00Z"\n`
+          systemPrompt += `   - Example: "5pm local" = "${today}T${String(17 - offsetHours).padStart(2, '0')}:00:00Z"\n`
           systemPrompt += `   - locked: Set to FALSE by default - let user lock blocks manually via UI\n`
           systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
           systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
