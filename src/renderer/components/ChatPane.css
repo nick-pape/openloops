@@ -4,6 +4,7 @@
   height: 100vh;
   border-left: 1px solid var(--border-color, #e1e4e8);
   background: var(--bg-secondary, #f6f8fa);
+  position: relative; /* For overlay positioning */
 }
 
 .chat-pane.collapsed {
@@ -410,6 +411,38 @@
   gap: 0.375rem;
 }
 
+/* Attachments in Message */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.message-attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  background: #e9d5ff;
+  color: #6b21a8;
+  max-width: 200px;
+}
+
+.message-attachment-badge .attachment-icon {
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.message-attachment-badge .attachment-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Context Colors */
 .context-blue {
   background: #dbeafe;
@@ -461,4 +494,92 @@
 .new-chat-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Drag & Drop */
+.chat-pane.drag-over {
+  background: #f0f9ff;
+  border-left: 2px solid var(--primary, #7C3AED);
+}
+
+.drop-zone-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(124, 58, 237, 0.1);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.drop-zone-message {
+  background: var(--primary, #7C3AED);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+/* Attachments - styled like context badge */
+.chat-attachments-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0 1rem;
+}
+
+.chat-attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 6px;
+  background: #e9d5ff;
+  color: #6b21a8;
+  max-width: 300px;
+}
+
+.chat-attachment-badge .attachment-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.chat-attachment-badge .attachment-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-attachment-badge .attachment-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6b21a8;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.chat-attachment-badge .attachment-remove:hover {
+  background: rgba(107, 33, 168, 0.2);
+  opacity: 1;
 }

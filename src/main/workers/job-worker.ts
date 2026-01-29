@@ -13,7 +13,7 @@ import fs from 'fs'
 console.log('[Job Worker] Worker thread started')
 
 interface JobMessage {
-  type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation'
+  type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation' | 'tag-generation'
   jobId: string
   payload: any
   dbPath: string
@@ -47,6 +47,8 @@ parentPort?.on('message', async (message: JobMessage) => {
       result = await handleImageDescription(payload, config, db, jobId)
     } else if (type === 'text-title-generation') {
       result = await handleTextTitleGeneration(payload, config, db, jobId)
+    } else if (type === 'tag-generation') {
+      result = await handleTagGeneration(payload, config, db, jobId)
     } else {
       throw new Error(`Unknown job type: ${type}`)
     }
@@ -225,9 +227,10 @@ async function handleImageDescription(
   const base64 = imageBuffer.toString('base64')
   const mimeType = 'image/jpeg' // Resized images are always JPEG
 
-  console.log('[Job Worker] Generating image title...')
-  const result = await llmProvider.generateImageTitle(base64, mimeType)
-  console.log('[Job Worker] Image title generated:', result.text)
+  console.log('[Job Worker] Generating image title and detailed description...')
+  const result = await llmProvider.generateImageTitleAndDescription(base64, mimeType)
+  console.log('[Job Worker] Image title generated:', result.title)
+  console.log('[Job Worker] Detailed description generated:', result.detailedDescription.substring(0, 100) + '...')
 
   // Update job with provider metadata
   await db.update(schema.jobQueue)
@@ -238,21 +241,33 @@ async function handleImageDescription(
     })
     .where(eq(schema.jobQueue.id, jobId))
 
-  // Update capture title if we got a result
-  if (result.text && result.text.trim()) {
-    const capture = await db.select()
-      .from(schema.captures)
-      .where(eq(schema.captures.id, payload.captureId))
-      .limit(1)
+  // Update capture with both title and detailed description
+  const capture = await db.select()
+    .from(schema.captures)
+    .where(eq(schema.captures.id, payload.captureId))
+    .limit(1)
 
-    if (capture[0]) {
+  if (capture[0]) {
+    const updates: any = {}
+    if (result.title && result.title.trim()) {
+      updates.title = result.title.trim()
+    }
+    if (result.detailedDescription && result.detailedDescription.trim()) {
+      updates.detailedDescription = result.detailedDescription.trim()
+    }
+
+    if (Object.keys(updates).length > 0) {
       await db.update(schema.captures)
-        .set({ title: result.text.trim() })
+        .set(updates)
         .where(eq(schema.captures.id, payload.captureId))
     }
   }
 
-  return result.text
+  // Return JSON with both title and description for job result
+  return JSON.stringify({
+    title: result.title,
+    description: result.detailedDescription.substring(0, 100) + (result.detailedDescription.length > 100 ? '...' : '')
+  })
 }
 
 async function handleTextTitleGeneration(
@@ -315,6 +330,68 @@ async function handleTextTitleGeneration(
   }
 
   return result.text
+}
+
+async function handleTagGeneration(
+  payload: { captureId: string; captureType: string; title: string; content: string },
+  config: any,
+  db: any,
+  jobId: string
+): Promise<string> {
+  console.log('[Job Worker] Handling tag-generation job')
+  console.log('[Job Worker] Capture ID:', payload.captureId, 'Type:', payload.captureType)
+
+  const factory = new ProviderFactory()
+
+  if (!llmProvider) {
+    console.log('[Job Worker] Creating LLM provider for tag generation...')
+    llmProvider = factory.createLLMProvider(config.llm)
+    console.log('[Job Worker] LLM provider created:', llmProvider.name)
+  }
+
+  // Check if LLM provider is disabled
+  if (llmProvider.name === 'disabled') {
+    console.log('[Job Worker] LLM provider is disabled, skipping tag generation')
+
+    // Update job with provider info
+    await db.update(schema.jobQueue)
+      .set({
+        provider: 'disabled',
+        model: 'none'
+      })
+      .where(eq(schema.jobQueue.id, jobId))
+
+    return '[]' // Return empty array
+  }
+
+  console.log('[Job Worker] Generating tags...')
+  const result = await llmProvider.generateTags(payload.captureType, payload.title, payload.content)
+  console.log('[Job Worker] Tags generated:', result.tags.join(', '))
+
+  // Update job with provider metadata
+  await db.update(schema.jobQueue)
+    .set({
+      provider: llmProvider.name,
+      model: llmProvider.model,
+      metadata: JSON.stringify(result.metadata)
+    })
+    .where(eq(schema.jobQueue.id, jobId))
+
+  // Update capture with tags
+  if (result.tags.length > 0) {
+    const capture = await db.select()
+      .from(schema.captures)
+      .where(eq(schema.captures.id, payload.captureId))
+      .limit(1)
+
+    if (capture[0]) {
+      await db.update(schema.captures)
+        .set({ tags: JSON.stringify(result.tags) })
+        .where(eq(schema.captures.id, payload.captureId))
+    }
+  }
+
+  return JSON.stringify(result.tags)
 }
 
 // function getMimeType(ext: string): string {

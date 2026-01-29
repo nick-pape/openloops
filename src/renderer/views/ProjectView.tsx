@@ -46,6 +46,9 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  // Drag/drop state for external files
+  const [isDraggingExternal, setIsDraggingExternal] = useState(false)
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
@@ -214,6 +217,8 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
   const handleImageDrop = async (e: React.DragEvent) => {
     e.preventDefault()
+    setIsDraggingExternal(false)
+
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
 
     for (const file of files) {
@@ -238,6 +243,29 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     }
 
     await loadCaptures()
+  }
+
+  const handleDragOverProject = (e: React.DragEvent) => {
+    // Check if it's an external drag (files from OS)
+    const hasFiles = e.dataTransfer.types.includes('Files')
+    const hasJson = e.dataTransfer.types.includes('application/json')
+
+    // Only show overlay for external file drags, not internal item drags
+    if (hasFiles && !hasJson) {
+      e.preventDefault()
+      setIsDraggingExternal(true)
+    }
+  }
+
+  const handleDragLeaveProject = (e: React.DragEvent) => {
+    // Only hide overlay if leaving the project view itself
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setIsDraggingExternal(false)
+    }
   }
 
   const handleImagePaste = async (e: React.ClipboardEvent) => {
@@ -824,9 +852,15 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     <div
       className="project-view"
       onDrop={handleImageDrop}
-      onDragOver={(e) => e.preventDefault()}
+      onDragOver={handleDragOverProject}
+      onDragLeave={handleDragLeaveProject}
       onPaste={handleImagePaste}
     >
+      {isDraggingExternal && (
+        <div className="drop-zone-overlay">
+          <div className="drop-zone-message">Drop files to create capture</div>
+        </div>
+      )}
       <div className="project-header">
         <h1>{project.name}</h1>
         <button className="danger" onClick={() => setShowDeleteConfirm(true)}>
@@ -857,7 +891,22 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
       {activeTab === 'summary' && (
         <div className="tab-content">
-          <div className="project-summary-panel">
+          <div
+            className="project-summary-panel"
+            draggable={!!summary}
+            onDragStart={(e) => {
+              if (!summary) return
+              const dragData = {
+                type: 'summary',
+                id: summary.id,
+                title: 'Project Summary',
+                data: summary
+              }
+              e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+              e.dataTransfer.effectAllowed = 'copy'
+            }}
+            style={{ cursor: summary ? 'grab' : 'default' }}
+          >
             <div className="summary-header">
               <h2>Project Summary</h2>
               <button onClick={handleGenerateSummary} disabled={generatingSummary}>
@@ -935,7 +984,22 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
 
             <div className="task-list">
               {tasks.map(task => (
-                <div key={task.id} className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
+                <div
+                  key={task.id}
+                  className={`task-card ${task.status === 'done' ? 'done' : ''}`}
+                  draggable={true}
+                  onDragStart={(e) => {
+                    const dragData = {
+                      type: 'task',
+                      id: task.id,
+                      title: task.title,
+                      data: task
+                    }
+                    e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
+                  style={{ cursor: 'grab' }}
+                >
                   <div className="task-card-header">
                     <input
                       type="checkbox"
@@ -1239,7 +1303,21 @@ function CaptureAccordion({
   }
 
   return (
-    <div className={`capture-accordion ${isExpanded ? 'expanded' : ''}`}>
+    <div
+      className={`capture-accordion ${isExpanded ? 'expanded' : ''}`}
+      draggable={true}
+      onDragStart={(e) => {
+        const dragData = {
+          type: 'capture',
+          id: capture.id,
+          title: capture.title || `${capture.type} capture`,
+          data: capture
+        }
+        e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      style={{ cursor: 'grab' }}
+    >
       <div className="accordion-header" onClick={onToggle}>
         <div className="accordion-title">
           <span className={`capture-type capture-type-${capture.type}`}>
@@ -1316,6 +1394,19 @@ function CaptureAccordion({
               >
                 🔗 {capture.bodyText}
               </a>
+            </div>
+          )}
+          {capture.type === 'image' && capture.detailedDescription && (
+            <div className="capture-description">
+              <strong>Description:</strong>
+              <p>{capture.detailedDescription}</p>
+            </div>
+          )}
+          {capture.tags && capture.tags.length > 0 && (
+            <div className="capture-tags">
+              {capture.tags.map((tag, index) => (
+                <span key={index} className="capture-tag">{tag}</span>
+              ))}
             </div>
           )}
         </div>

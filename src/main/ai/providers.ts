@@ -25,13 +25,25 @@ export interface ChatMessage {
   timestamp?: string  // Optional for system messages
 }
 
+export interface ImageTitleAndDescription {
+  title: string
+  detailedDescription: string
+  metadata: JobMetadata
+}
+
+export interface TagsResult {
+  tags: string[]
+  metadata: JobMetadata
+}
+
 export interface LLMProvider {
   name: string
   model: string
   baseUrl?: string
   generateSummary(prompt: string, context: string): Promise<LLMResult>
-  generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult>
+  generateImageTitleAndDescription(imageBase64: string, mimeType: string): Promise<ImageTitleAndDescription>
   generateTextTitle(bodyText: string, previousTitle?: string): Promise<LLMResult>
+  generateTags(captureType: string, title: string, content: string): Promise<TagsResult>
   chat(messages: ChatMessage[]): Promise<LLMResult>
 }
 
@@ -139,7 +151,7 @@ export class RemoteLLMProvider implements LLMProvider {
     }
   }
 
-  async generateImageTitle(imageBase64: string, mimeType: string): Promise<LLMResult> {
+  async generateImageTitleAndDescription(imageBase64: string, mimeType: string): Promise<ImageTitleAndDescription> {
     const startTime = Date.now()
     const requestParams = {
       model: this.model,
@@ -149,7 +161,15 @@ export class RemoteLLMProvider implements LLMProvider {
           content: [
             {
               type: 'text',
-              text: 'Describe this image in 5-10 words as a title. Be concise and specific about what you see.'
+              text: `Analyze this image and provide:
+1. A concise title (5-10 words)
+2. A detailed description (2-3 sentences) for someone who cannot see the image
+
+Format your response as JSON:
+{
+  "title": "your title here",
+  "description": "your detailed description here"
+}`
             },
             {
               type: 'image_url',
@@ -160,7 +180,8 @@ export class RemoteLLMProvider implements LLMProvider {
           ]
         }
       ],
-      max_tokens: 50
+      max_tokens: 200,
+      response_format: { type: 'json_object' }
     }
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -173,20 +194,24 @@ export class RemoteLLMProvider implements LLMProvider {
     })
 
     if (!response.ok) {
-      throw new Error(`Image title generation failed: ${response.statusText}`)
+      throw new Error(`Image title and description generation failed: ${response.statusText}`)
     }
 
     const data = await response.json()
     const durationMs = Date.now() - startTime
 
+    // Parse JSON response
+    const result = JSON.parse(data.choices[0].message.content)
+
     return {
-      text: data.choices[0].message.content.trim(),
+      title: result.title?.trim() || '',
+      detailedDescription: result.description?.trim() || '',
       metadata: {
         baseUrl: this.baseUrl,
         model: this.model,
         requestParams: {
-          max_tokens: 50,
-          imageSize: Math.round(imageBase64.length * 0.75) // Approximate bytes
+          max_tokens: 200,
+          imageSize: Math.round(imageBase64.length * 0.75)
         },
         tokensUsed: data.usage?.total_tokens,
         durationMs
@@ -240,6 +265,88 @@ export class RemoteLLMProvider implements LLMProvider {
         requestParams: {
           max_tokens: 30,
           temperature: 0.5
+        },
+        tokensUsed: data.usage?.total_tokens,
+        durationMs
+      }
+    }
+  }
+
+  async generateTags(captureType: string, title: string, content: string): Promise<TagsResult> {
+    const startTime = Date.now()
+
+    const prompt = `Generate 2-10 relevant tags for this ${captureType} capture.
+
+Title: ${title || 'Untitled'}
+Content: ${content.slice(0, 500)}
+
+Return tags as a JSON array of strings. Tags should be:
+- Single words or short phrases (2-3 words max)
+- Lowercase
+- Relevant keywords that describe the content
+- No duplicates
+
+Example: ["meeting", "project planning", "deadline", "budget"]
+
+Only output the JSON array, nothing else.`
+
+    const requestParams = {
+      model: this.model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 100,
+      temperature: 0.3,
+      response_format: { type: 'json_object' }
+    }
+
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(requestParams)
+    })
+
+    if (!response.ok) {
+      throw new Error(`Tag generation failed: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    const durationMs = Date.now() - startTime
+
+    // Parse the response - could be array directly or wrapped in object
+    let tags: string[] = []
+    try {
+      const parsed = JSON.parse(data.choices[0].message.content)
+      if (Array.isArray(parsed)) {
+        tags = parsed
+      } else if (parsed.tags && Array.isArray(parsed.tags)) {
+        tags = parsed.tags
+      }
+    } catch (error) {
+      console.error('[LLM] Failed to parse tags JSON:', error)
+      tags = []
+    }
+
+    // Validate and clean tags
+    tags = tags
+      .filter(tag => typeof tag === 'string' && tag.trim().length > 0)
+      .map(tag => tag.toLowerCase().trim())
+      .slice(0, 10) // Max 10 tags
+
+    return {
+      tags,
+      metadata: {
+        baseUrl: this.baseUrl,
+        model: this.model,
+        requestParams: {
+          max_tokens: 100,
+          temperature: 0.3
         },
         tokensUsed: data.usage?.total_tokens,
         durationMs
@@ -329,10 +436,11 @@ ${lines.slice(0, 10).join('\n')}
     }
   }
 
-  async generateImageTitle(_imageBase64: string, _mimeType: string): Promise<LLMResult> {
-    // No-op: return empty string, caller will keep the filename
+  async generateImageTitleAndDescription(_imageBase64: string, _mimeType: string): Promise<ImageTitleAndDescription> {
+    // No-op: return empty strings, caller will keep the filename
     return {
-      text: '',
+      title: '',
+      detailedDescription: '',
       metadata: {
         model: 'none',
         durationMs: 0
@@ -344,6 +452,17 @@ ${lines.slice(0, 10).join('\n')}
     // No-op: return empty string, title stays null
     return {
       text: '',
+      metadata: {
+        model: 'none',
+        durationMs: 0
+      }
+    }
+  }
+
+  async generateTags(_captureType: string, _title: string, _content: string): Promise<TagsResult> {
+    // No-op: return empty array
+    return {
+      tags: [],
       metadata: {
         model: 'none',
         durationMs: 0

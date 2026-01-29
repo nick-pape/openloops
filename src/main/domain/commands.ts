@@ -84,7 +84,25 @@ export class CaptureCommands {
   }
 
   async deleteCapture(id: string) {
+    // Get capture to check if it has a file
+    const capture = await repository.getCapture(id)
+
+    // Delete from database
     await repository.deleteCapture(id)
+
+    // Delete file from disk if it exists
+    if (capture && capture.filePath) {
+      const fs = require('fs')
+      try {
+        if (fs.existsSync(capture.filePath)) {
+          fs.unlinkSync(capture.filePath)
+          console.log('[Commands] Deleted file:', capture.filePath)
+        }
+      } catch (error) {
+        console.error('[Commands] Failed to delete file:', capture.filePath, error)
+      }
+    }
+
     domainEvents.emitDomainEvent({
       type: 'capture.deleted',
       captureId: id

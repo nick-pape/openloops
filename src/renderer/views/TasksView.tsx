@@ -362,7 +362,21 @@ interface TaskCardProps {
 
 function TaskCard({ task, onToggle, onEdit, onDelete, onStartWorkMode }: TaskCardProps) {
   return (
-    <div className={`task-card ${task.status === 'done' ? 'done' : ''}`}>
+    <div
+      className={`task-card ${task.status === 'done' ? 'done' : ''}`}
+      draggable={true}
+      onDragStart={(e) => {
+        const dragData = {
+          type: 'task',
+          id: task.id,
+          title: task.title,
+          data: task
+        }
+        e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      style={{ cursor: 'grab' }}
+    >
       <div className="task-card-header">
         <input
           type="checkbox"

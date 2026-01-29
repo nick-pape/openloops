@@ -3,6 +3,33 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative; /* For overlay positioning */
+}
+
+/* Drag & Drop Overlay */
+.project-view .drop-zone-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(124, 58, 237, 0.1);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.project-view .drop-zone-message {
+  background: var(--primary, #7C3AED);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
 }
 
 .project-header {
@@ -303,6 +330,47 @@
 
 .transcription-error {
   color: #dc3545;
+}
+
+/* Capture Description */
+.capture-description {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.capture-description strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.capture-description p {
+  margin: 0;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* Capture Tags */
+.capture-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e1e4e8;
+}
+
+.capture-tag {
+  display: inline-block;
+  background: #e9d5ff;
+  color: #6b21a8;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 /* Source Picker Modal */

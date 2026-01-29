@@ -379,7 +379,20 @@ function setupIPC() {
   })
 
   ipcMain.handle('captures:update', async (_, id: string, title: string, bodyText: string) => {
-    return captureCommands.updateCapture(id, title, bodyText)
+    const capture = await captureCommands.updateCapture(id, title, bodyText)
+
+    // Re-generate tags when capture content changes
+    if (capture) {
+      await jobManager.enqueueTagGeneration(
+        capture.id,
+        capture.type,
+        title,
+        bodyText
+      )
+      console.log('[Captures] Tag regeneration job enqueued for updated capture')
+    }
+
+    return capture
   })
 
   ipcMain.handle('captures:delete', async (_, id: string) => {
@@ -494,11 +507,12 @@ function setupIPC() {
       const originalSize = fs.statSync(imagePath).size
 
       const resizedBuffer = await sharp(imagePath)
-        .resize(768, 768, {
-          fit: 'inside',
+        .rotate() // Auto-rotate based on EXIF orientation
+        .resize(1536, 1536, {
+          fit: 'inside', // Maintains aspect ratio, fits within bounds
           withoutEnlargement: true
         })
-        .toFormat('jpeg', { quality: 85 })
+        .toFormat('jpeg', { quality: 90 })
         .toBuffer()
 
       console.log('[Images] Original size:', originalSize, 'bytes')
@@ -511,6 +525,9 @@ function setupIPC() {
       // Enqueue job with resized image path
       const jobId = await jobManager.enqueueImageDescription(captureId, resizedPath)
       console.log('[Images] Image description job enqueued')
+
+      // Note: Tag generation will be triggered AFTER description completes
+      // so tags are based on actual image content, not file path
 
       // Emit event to renderer with newly created job
       const job = await repository.getJob(jobId)
@@ -634,8 +651,11 @@ Keep it concise and actionable.`
   })
 
   // Chat - uses AI SDK agent with MCP tools and streaming (context-aware)
-  ipcMain.handle('chat:send', async (event, messages: any[], context: any, streamId: string) => {
+  ipcMain.handle('chat:send', async (event, messages: any[], context: any, streamId: string, attachments?: any[]) => {
     console.log('[Chat] Starting agent chat, context:', context.active.type, 'streamId:', streamId)
+    if (attachments && attachments.length > 0) {
+      console.log('[Chat] Attachments:', attachments.map((a: any) => `${a.type}:${a.title}`).join(', '))
+    }
 
     try {
       // Get LLM config from settings
@@ -737,6 +757,95 @@ Keep it concise and actionable.`
           systemPrompt += `Current Context: General\n`
           systemPrompt += `You can help with projects, tasks, planning, and configuration.\n`
         }
+      }
+
+      // Add attachment context if provided - resolve references at send time
+      if (attachments && attachments.length > 0) {
+        console.log('[Chat] Resolving attachments:', attachments.length)
+        systemPrompt += `\n\n## Attached Context:\n`
+        systemPrompt += `The user has attached the following items for reference:\n\n`
+
+        for (const attachment of attachments) {
+          console.log('[Chat] Resolving attachment:', attachment.type, attachment.id)
+
+          if (attachment.type === 'capture') {
+            // Fetch latest capture data from database
+            const capture = await repository.getCapture(attachment.id)
+            if (!capture) {
+              console.warn('[Chat] Capture not found:', attachment.id)
+              continue
+            }
+
+            systemPrompt += `### Capture: ${capture.title || 'Untitled'}\n`
+            systemPrompt += `Type: ${capture.type}\n`
+
+            // Handle different capture types
+            if (capture.type === 'text' || capture.type === 'chat' || capture.type === 'decision') {
+              if (capture.bodyText) {
+                systemPrompt += `Content:\n${capture.bodyText}\n`
+              }
+              // Include tags if available
+              if (capture.tags && capture.tags.length > 0) {
+                systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
+              }
+            } else if (capture.type === 'image') {
+              // For images, include AI-generated detailed description if available
+              if (capture.detailedDescription) {
+                systemPrompt += `Image Description: ${capture.detailedDescription}\n`
+              } else {
+                systemPrompt += `Image: ${capture.filePath || 'No description available yet'}\n`
+                systemPrompt += `Note: Image description may still be generating.\n`
+              }
+              // Include tags if available
+              if (capture.tags && capture.tags.length > 0) {
+                systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
+              }
+            } else if (capture.type === 'audio') {
+              // For audio, try to get transcription
+              const transcription = await repository.getTranscriptionByCapture(capture.id)
+              if (transcription && transcription.status === 'done' && transcription.text) {
+                systemPrompt += `Transcription:\n${transcription.text}\n`
+              } else {
+                systemPrompt += `Audio file: ${capture.filePath || 'Unknown'}\n`
+                systemPrompt += `Note: Transcription is ${transcription?.status || 'pending'}\n`
+              }
+            } else if (capture.type === 'link') {
+              if (capture.bodyText) {
+                systemPrompt += `URL: ${capture.bodyText}\n`
+              }
+            }
+
+            systemPrompt += `Created: ${new Date(capture.createdAt).toLocaleString()}\n\n`
+          } else if (attachment.type === 'task') {
+            // Fetch latest task data from database
+            const task = await repository.getTask(attachment.id)
+            if (!task) {
+              console.warn('[Chat] Task not found:', attachment.id)
+              continue
+            }
+
+            systemPrompt += `### Task: ${task.title}\n`
+            systemPrompt += `Status: ${task.status}\n`
+            systemPrompt += `Priority: P${task.priority}\n`
+            systemPrompt += `Estimate: ${task.estimateMinutes} minutes\n`
+            if (task.notes) {
+              systemPrompt += `Notes: ${task.notes}\n`
+            }
+            systemPrompt += `Created: ${new Date(task.createdAt).toLocaleString()}\n\n`
+          } else if (attachment.type === 'summary') {
+            // Fetch latest summary from database
+            const summary = await repository.getProjectSummary(attachment.id)
+            if (!summary) {
+              console.warn('[Chat] Summary not found:', attachment.id)
+              continue
+            }
+
+            systemPrompt += `### Project Summary\n`
+            systemPrompt += `${summary.summaryMd}\n\n`
+          }
+        }
+
+        console.log('[Chat] All attachments resolved and added to system prompt')
       }
 
       systemPrompt += `\nRules:
@@ -1079,6 +1188,15 @@ Keep it concise and actionable.`
 
     // Enqueue AI title generation job
     const jobId = await jobManager.enqueueTextTitleGeneration(capture.id, text)
+
+    // Also enqueue tag generation for the text capture
+    await jobManager.enqueueTagGeneration(
+      capture.id,
+      'text',
+      capture.title || 'Text note',
+      text
+    )
+    console.log('[TextCapture] Tag generation job enqueued')
 
     // Emit event to renderer with newly created job
     const job = await repository.getJob(jobId)

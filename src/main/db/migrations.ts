@@ -516,6 +516,48 @@ export const migrations: Migration[] = [
 
       console.log('[Migration] Completed: add-link-capture-type')
     }
+  },
+  {
+    version: 9,
+    name: 'add-detailed-description-and-tags',
+    up: (db) => {
+      console.log('[Migration] Running: add-detailed-description-and-tags')
+
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        -- Add detailed_description and tags columns to captures
+        ALTER TABLE captures ADD COLUMN detailed_description TEXT;
+        ALTER TABLE captures ADD COLUMN tags TEXT;
+
+        -- Update job_queue to include tag-generation job type
+        CREATE TABLE job_queue_new (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL CHECK(type IN ('transcription', 'summary', 'image-description', 'text-title-generation', 'task-extraction', 'decision-extraction', 'tag-generation')),
+          status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'done', 'error')),
+          payload TEXT NOT NULL,
+          result TEXT,
+          error_message TEXT,
+          provider TEXT,
+          model TEXT,
+          metadata TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+
+        INSERT INTO job_queue_new (id, type, status, payload, result, error_message, provider, model, metadata, created_at, updated_at)
+        SELECT id, type, status, payload, result, error_message, provider, model, metadata, created_at, updated_at FROM job_queue;
+
+        DROP TABLE job_queue;
+        ALTER TABLE job_queue_new RENAME TO job_queue;
+
+        CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status, type);
+
+        COMMIT;
+      `)
+
+      console.log('[Migration] Completed: add-detailed-description-and-tags')
+    }
   }
 ]
 

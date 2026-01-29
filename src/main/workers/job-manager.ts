@@ -97,6 +97,22 @@ export class JobManager {
     return jobId
   }
 
+  async enqueueTagGeneration(captureId: string, captureType: string, title: string, content: string): Promise<string> {
+    logger.info('[JobManager] Enqueueing tag-generation job for capture:', captureId)
+    const jobId = await repository.enqueueJob('tag-generation', {
+      captureId,
+      captureType,
+      title,
+      content
+    })
+    logger.info('[JobManager] Tag-generation job enqueued with ID:', jobId)
+
+    // Trigger immediate processing
+    this.processPendingJobs()
+
+    return jobId
+  }
+
   private async processPendingJobs() {
     if (this.isProcessing) {
       return
@@ -116,12 +132,15 @@ export class JobManager {
 
       // Process text-title-generation jobs
       await this.processJobType('text-title-generation')
+
+      // Process tag-generation jobs
+      await this.processJobType('tag-generation')
     } finally {
       this.isProcessing = false
     }
   }
 
-  private async processJobType(type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation') {
+  private async processJobType(type: 'transcription' | 'summary' | 'image-description' | 'text-title-generation' | 'tag-generation') {
     const job = await repository.getNextPendingJob(type)
 
     if (!job) {
@@ -175,8 +194,8 @@ export class JobManager {
                       logger.info('[JobManager] Emitted summary.generated domain event')
                     }
                   }
-                } else if (updatedJob.type === 'text-title-generation' || updatedJob.type === 'image-description') {
-                  // Capture title was updated - emit capture.updated event
+                } else if (updatedJob.type === 'text-title-generation' || updatedJob.type === 'image-description' || updatedJob.type === 'tag-generation') {
+                  // Capture was updated - emit capture.updated event
                   const captureId = payload.captureId
                   if (captureId) {
                     domainEvents.emitDomainEvent({
@@ -184,6 +203,21 @@ export class JobManager {
                       captureId: captureId
                     })
                     logger.info(`[JobManager] Emitted capture.updated domain event for ${updatedJob.type}`)
+
+                    // If image description just completed, enqueue tag generation using the description
+                    if (updatedJob.type === 'image-description') {
+                      logger.info('[JobManager] Image description completed, enqueueing tag generation')
+                      const capture = await repository.getCapture(captureId)
+                      if (capture && capture.detailedDescription) {
+                        await this.enqueueTagGeneration(
+                          captureId,
+                          'image',
+                          capture.title || 'Image',
+                          capture.detailedDescription
+                        )
+                        logger.info('[JobManager] Tag generation enqueued with image description as content')
+                      }
+                    }
                   }
                 } else if (updatedJob.type === 'transcription') {
                   // Transcription completed - emit capture.updated event

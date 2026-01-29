@@ -17,6 +17,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
         </div>
       )}
 
+      {/* Show attachments for user messages */}
+      {message.role === 'user' && message.attachments && message.attachments.length > 0 && (
+        <div className="message-attachments">
+          {message.attachments.map((attachment) => (
+            <div key={`${attachment.type}-${attachment.id}`} className="message-attachment-badge">
+              <span className="attachment-icon">
+                {attachment.type === 'capture' && '📝'}
+                {attachment.type === 'task' && '✓'}
+                {attachment.type === 'summary' && '📊'}
+              </span>
+              <span className="attachment-title">{attachment.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="message-header">
         <span className="message-role">
           {message.role === 'user' ? '👤 You' : message.role === 'system' ? '⚙️ System' : '🤖 Assistant'}

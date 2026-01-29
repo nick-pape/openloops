@@ -1,4 +1,4 @@
-import { ChatMessage, ToolCall, ChatContext } from '../../types'
+import { ChatMessage, ToolCall, ChatContext, ChatAttachment } from '../../types'
 
 /**
  * ElectronChatRuntime - Custom runtime adapter for assistant-ui
@@ -186,8 +186,8 @@ export class ElectronChatRuntime {
   /**
    * Send a message and get streaming response
    */
-  async sendMessage(content: string, context: ChatContext): Promise<void> {
-    // Add user message with context
+  async sendMessage(content: string, context: ChatContext, attachments: ChatAttachment[] = []): Promise<void> {
+    // Add user message with context and attachments
     const userMessage: ChatMessage = {
       role: 'user',
       content,
@@ -196,7 +196,12 @@ export class ElectronChatRuntime {
         type: context.active.type,
         label: context.active.label,
         color: context.active.color
-      }
+      },
+      attachments: attachments.length > 0 ? attachments.map(a => ({
+        type: a.type,
+        id: a.id,
+        title: a.title
+      })) : undefined
     }
 
     this.messages.push(userMessage)
@@ -215,11 +220,12 @@ export class ElectronChatRuntime {
     this.notifySubscribers()
 
     try {
-      // Send to backend with context - streaming deltas will update the message via events
+      // Send to backend with context and attachments - streaming deltas will update the message via events
       const response = await window.electron.chat.send(
         this.messages.slice(0, -1), // Don't send the empty assistant message
         context,
-        this.currentStreamId!
+        this.currentStreamId!,
+        attachments
       )
 
       // Update final message content (in case we missed any deltas)

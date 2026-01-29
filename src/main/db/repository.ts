@@ -113,17 +113,27 @@ export class Repository {
     return this.getCapture(id)
   }
 
+  // Helper to parse tags from database
+  private parseCaptureFields(capture: any) {
+    if (!capture) return capture
+    return {
+      ...capture,
+      tags: capture.tags ? JSON.parse(capture.tags) : []
+    }
+  }
+
   async getCapture(id: string) {
     const db = getDatabase()
     const result = await db.select().from(schema.captures).where(eq(schema.captures.id, id)).limit(1)
-    return result[0]
+    return this.parseCaptureFields(result[0])
   }
 
   async getCapturesByProject(projectId: string) {
     const db = getDatabase()
-    return db.select().from(schema.captures)
+    const results = await db.select().from(schema.captures)
       .where(eq(schema.captures.projectId, projectId))
       .orderBy(desc(schema.captures.createdAt))
+    return results.map(c => this.parseCaptureFields(c))
   }
 
   async getCapturesWithFlags(projectId: string) {
@@ -158,7 +168,7 @@ export class Repository {
       .where(whereClause)
       .orderBy(desc(schema.captures.createdAt))
 
-    return captures.map(c => ({
+    return captures.map(c => this.parseCaptureFields({
       ...c.capture,
       isOpenLoop: c.flag?.isOpenLoop || false
     }))
@@ -185,6 +195,20 @@ export class Repository {
     return this.getCapture(id)
   }
 
+  async updateCaptureDetailedDescription(id: string, detailedDescription: string) {
+    const db = getDatabase()
+    await db.update(schema.captures)
+      .set({ detailedDescription })
+      .where(eq(schema.captures.id, id))
+  }
+
+  async updateCaptureTags(id: string, tags: string[]) {
+    const db = getDatabase()
+    await db.update(schema.captures)
+      .set({ tags: JSON.stringify(tags) })
+      .where(eq(schema.captures.id, id))
+  }
+
   async deleteCapture(id: string) {
     const db = getDatabase()
     // Delete associated flags
@@ -197,9 +221,10 @@ export class Repository {
 
   async getCapturesByTask(taskId: string) {
     const db = getDatabase()
-    return db.select().from(schema.captures)
+    const results = await db.select().from(schema.captures)
       .where(eq(schema.captures.linkedTaskId, taskId))
       .orderBy(desc(schema.captures.createdAt))
+    return results.map(c => this.parseCaptureFields(c))
   }
 
   // Transcriptions

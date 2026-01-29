@@ -14,6 +14,8 @@ export interface Capture {
   bodyText?: string
   filePath?: string
   metadata?: string
+  detailedDescription?: string  // AI-generated detailed description (for images, used by non-VLM chat)
+  tags?: string[]              // AI-generated tags (2-10 keywords)
   createdAt: Date
   isOpenLoop?: boolean
   // CONSTRAINT: Exactly one of projectId or linkedTaskId must be set
@@ -41,6 +43,13 @@ export interface ChatContext {
   }
 }
 
+export interface ChatAttachment {
+  type: 'capture' | 'task' | 'summary'
+  id: string
+  title: string  // Display text for the chip
+  data: Capture | Task | ProjectSummary  // Full data to send to backend
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
@@ -51,6 +60,11 @@ export interface ChatMessage {
     label: string
     color: string
   }
+  attachments?: Array<{  // Attachments sent with this message
+    type: 'capture' | 'task' | 'summary'
+    id: string
+    title: string
+  }>
 }
 
 export interface CaptureMetadata {
@@ -245,7 +259,7 @@ declare global {
         save: (text: string) => Promise<Capture>
       }
       chat: {
-        send: (messages: ChatMessage[], context: ChatContext, streamId: string) => Promise<ChatMessage>
+        send: (messages: ChatMessage[], context: ChatContext, streamId: string, attachments?: ChatAttachment[]) => Promise<ChatMessage>
         cancel: (streamId: string) => Promise<void>
         save: (projectId: string, messages: ChatMessage[]) => Promise<Capture>
         extractTasks: (projectId: string, messages: ChatMessage[]) => Promise<string>

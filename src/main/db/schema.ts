@@ -17,6 +17,8 @@ export const captures = sqliteTable('captures', {
   bodyText: text('body_text'),
   filePath: text('file_path'),
   metadata: text('metadata'),
+  detailedDescription: text('detailed_description'), // AI-generated detailed description (for images, for non-VLM chat context)
+  tags: text('tags'), // JSON array of AI-generated tags
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`)
 })
 
@@ -104,7 +106,7 @@ export const dayPlanBlocks = sqliteTable('day_plan_blocks', {
 
 export const jobQueue = sqliteTable('job_queue', {
   id: text('id').primaryKey(),
-  type: text('type', { enum: ['transcription', 'summary', 'image-description', 'text-title-generation', 'task-extraction', 'decision-extraction'] }).notNull(),
+  type: text('type', { enum: ['transcription', 'summary', 'image-description', 'text-title-generation', 'task-extraction', 'decision-extraction', 'tag-generation'] }).notNull(),
   status: text('status', { enum: ['pending', 'processing', 'done', 'error'] }).notNull().default('pending'),
   payload: text('payload').notNull(),
   result: text('result'),
