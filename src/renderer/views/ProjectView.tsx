@@ -60,6 +60,15 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
     loadProject()
   }, [projectId])
 
+  // Sync generatingSummary state with actual job status
+  useEffect(() => {
+    const hasPendingSummary = jobs.some(j => j.type === 'summary' && (j.status === 'pending' || j.status === 'processing'))
+    if (hasPendingSummary !== generatingSummary) {
+      console.log('[ProjectView] Syncing summary button state:', hasPendingSummary)
+      setGeneratingSummary(hasPendingSummary)
+    }
+  }, [jobs]) // Sync whenever jobs change
+
   // Listen for job completions and auto-reload relevant data
   useEffect(() => {
     // Find newly completed jobs that we haven't processed yet
@@ -80,7 +89,7 @@ export function ProjectView({ projectId, onDeleteProject }: ProjectViewProps) {
       } else if (job.type === 'summary') {
         console.log('[ProjectView] Summary completed, reloading summary')
         loadSummary()
-        setGeneratingSummary(false)
+        // Note: generatingSummary state is auto-synced via the jobs effect above
       } else if (job.type === 'transcription') {
         console.log('[ProjectView] Transcription completed, reloading captures')
         loadCaptures()
