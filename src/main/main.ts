@@ -1391,6 +1391,52 @@ Keep it concise and actionable.`
     }
   })
 
+  ipcMain.handle('microsoft-graph:listCalendars', async () => {
+    try {
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+
+      const storedAccount = await tokenStorage.getAccount()
+      if (!storedAccount) {
+        throw new Error('Not connected to Microsoft account')
+      }
+
+      const authService = getMicrosoftAuthService()
+      const account = await authService.getAccountByHomeAccountId(storedAccount.homeAccountId)
+      if (!account) {
+        throw new Error('Account not found in cache')
+      }
+
+      // Initialize Graph client
+      const graphClient = getMicrosoftGraphClient()
+      await graphClient.initialize(account)
+
+      // List calendars
+      const calendars = await graphClient.listCalendars()
+      return calendars
+    } catch (error: any) {
+      console.error('[MS Graph] Failed to list calendars:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:getSelectedCalendars', async () => {
+    const calendarsJson = await repository.getSetting('ms_graph_selected_calendars')
+    if (!calendarsJson) return []
+
+    try {
+      return JSON.parse(calendarsJson)
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:setSelectedCalendars', async (_, calendarIds: string[]) => {
+    await repository.setSetting('ms_graph_selected_calendars', JSON.stringify(calendarIds))
+  })
+
   ipcMain.handle('microsoft-graph:syncCalendar', async (_, startDate: string, endDate: string) => {
     try {
       const tokenStorage = new MicrosoftTokenStorage({
@@ -1413,8 +1459,24 @@ Keep it concise and actionable.`
       const graphClient = getMicrosoftGraphClient()
       await graphClient.initialize(account)
 
-      // Fetch calendar events
-      const events = await graphClient.getCalendarEvents(startDate, endDate)
+      // Get selected calendars
+      const selectedCalendarsJson = await repository.getSetting('ms_graph_selected_calendars')
+      let selectedCalendarIds: string[] = []
+
+      if (selectedCalendarsJson) {
+        try {
+          selectedCalendarIds = JSON.parse(selectedCalendarsJson)
+        } catch {
+          console.warn('[MS Graph] Failed to parse selected calendars, using default')
+        }
+      }
+
+      // Fetch calendar events (from selected calendars or default)
+      const events = await graphClient.getCalendarEvents(
+        startDate,
+        endDate,
+        selectedCalendarIds.length > 0 ? selectedCalendarIds : undefined
+      )
 
       console.log(`[MS Graph] Syncing ${events.length} calendar events...`)
 

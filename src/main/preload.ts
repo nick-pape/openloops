@@ -187,6 +187,9 @@ const api = {
     connect: () => ipcRenderer.invoke('microsoft-graph:connect'),
     disconnect: () => ipcRenderer.invoke('microsoft-graph:disconnect'),
     getUserProfile: () => ipcRenderer.invoke('microsoft-graph:getUserProfile'),
+    listCalendars: () => ipcRenderer.invoke('microsoft-graph:listCalendars'),
+    getSelectedCalendars: () => ipcRenderer.invoke('microsoft-graph:getSelectedCalendars'),
+    setSelectedCalendars: (calendarIds: string[]) => ipcRenderer.invoke('microsoft-graph:setSelectedCalendars', calendarIds),
     syncCalendar: (startDate: string, endDate: string) => ipcRenderer.invoke('microsoft-graph:syncCalendar', startDate, endDate),
     getLastSyncTime: () => ipcRenderer.invoke('microsoft-graph:getLastSyncTime')
   },

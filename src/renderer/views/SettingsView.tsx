@@ -24,6 +24,9 @@ export function SettingsView() {
   const [msGraphClientId, setMsGraphClientId] = useState('')
   const [msGraphClientIdSaving, setMsGraphClientIdSaving] = useState(false)
   const [msGraphShowInstructions, setMsGraphShowInstructions] = useState(false)
+  const [msGraphCalendars, setMsGraphCalendars] = useState<any[]>([])
+  const [msGraphSelectedCalendars, setMsGraphSelectedCalendars] = useState<string[]>([])
+  const [msGraphLoadingCalendars, setMsGraphLoadingCalendars] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -50,10 +53,45 @@ export function SettingsView() {
 
           const lastSync = await window.electron.microsoftGraph.getLastSyncTime()
           setMsGraphLastSync(lastSync)
+
+          // Load calendars and selected calendars
+          await loadMsGraphCalendars()
         }
       }
     } catch (error) {
       console.error('Failed to load Microsoft Graph status:', error)
+    }
+  }
+
+  const loadMsGraphCalendars = async () => {
+    setMsGraphLoadingCalendars(true)
+    try {
+      const calendars = await window.electron.microsoftGraph.listCalendars()
+      setMsGraphCalendars(calendars)
+
+      const selected = await window.electron.microsoftGraph.getSelectedCalendars()
+      setMsGraphSelectedCalendars(selected)
+
+      console.log('[Settings] Loaded calendars:', calendars.length, 'selected:', selected.length)
+    } catch (error) {
+      console.error('Failed to load calendars:', error)
+    }
+    setMsGraphLoadingCalendars(false)
+  }
+
+  const handleToggleCalendar = async (calendarId: string) => {
+    const newSelection = msGraphSelectedCalendars.includes(calendarId)
+      ? msGraphSelectedCalendars.filter(id => id !== calendarId)
+      : [...msGraphSelectedCalendars, calendarId]
+
+    setMsGraphSelectedCalendars(newSelection)
+
+    try {
+      await window.electron.microsoftGraph.setSelectedCalendars(newSelection)
+      console.log('[Settings] Updated selected calendars:', newSelection)
+    } catch (error) {
+      console.error('Failed to save selected calendars:', error)
+      setMessage('Failed to save calendar selection')
     }
   }
 
@@ -366,6 +404,40 @@ export function SettingsView() {
                 <p><strong>Last synced:</strong> {new Date(msGraphLastSync).toLocaleString()}</p>
               )}
             </div>
+
+            <div className="calendar-selection" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Calendars to Sync</h3>
+              {msGraphLoadingCalendars ? (
+                <p style={{ color: '#666', fontSize: '0.875rem' }}>Loading calendars...</p>
+              ) : msGraphCalendars.length === 0 ? (
+                <p style={{ color: '#666', fontSize: '0.875rem' }}>
+                  No calendars found. <button onClick={loadMsGraphCalendars} style={{ textDecoration: 'underline', background: 'none', border: 'none', color: '#2196f3', cursor: 'pointer' }}>Reload</button>
+                </p>
+              ) : (
+                <div className="calendar-list">
+                  {msGraphCalendars.map(calendar => (
+                    <label key={calendar.id} className="calendar-item">
+                      <input
+                        type="checkbox"
+                        checked={msGraphSelectedCalendars.includes(calendar.id)}
+                        onChange={() => handleToggleCalendar(calendar.id)}
+                      />
+                      <span className="calendar-name">
+                        {calendar.name}
+                        {calendar.isDefaultCalendar && <span className="calendar-badge">Default</span>}
+                        {calendar.owner && calendar.owner.address !== msGraphProfile?.mail && (
+                          <span className="calendar-badge shared">Shared by {calendar.owner.name}</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>
+                {msGraphSelectedCalendars.length === 0 ? 'All calendars selected by default (primary calendar only)' : `${msGraphSelectedCalendars.length} calendar(s) selected`}
+              </p>
+            </div>
+
             <button onClick={handleDisconnectMicrosoft} className="danger-button">
               Disconnect Account
             </button>

@@ -149,6 +149,20 @@ export interface MicrosoftUserProfile {
   userPrincipalName: string
 }
 
+export interface MicrosoftCalendar {
+  id: string
+  name: string
+  color: string
+  isDefaultCalendar: boolean
+  canEdit: boolean
+  canShare: boolean
+  canViewPrivateItems: boolean
+  owner?: {
+    name: string
+    address: string
+  }
+}
+
 export interface TimeBlock {
   id?: string
   startDt: Date
@@ -301,6 +315,9 @@ declare global {
         connect: () => Promise<MicrosoftAuthResponse>
         disconnect: () => Promise<void>
         getUserProfile: () => Promise<MicrosoftUserProfile | null>
+        listCalendars: () => Promise<MicrosoftCalendar[]>
+        getSelectedCalendars: () => Promise<string[]>
+        setSelectedCalendars: (calendarIds: string[]) => Promise<void>
         syncCalendar: (startDate: string, endDate: string) => Promise<{ imported: number; updated: number }>
         getLastSyncTime: () => Promise<Date | null>
       }
