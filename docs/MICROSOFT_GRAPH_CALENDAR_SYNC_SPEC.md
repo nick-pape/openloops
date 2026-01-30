@@ -42,7 +42,7 @@ Add Microsoft Graph integration to sync calendar events from Outlook/Microsoft 3
 
 1. **Azure AD App Registration**
    - Application Type: Public client (Desktop)
-   - Redirect URI: `http://localhost:3000/auth/callback` (local redirect server)
+   - Redirect URI: `http://localhost:3001/auth/callback` (local redirect server)
    - Allow public client flows: Yes
    - API Permissions:
      - `Calendars.Read` (Delegated) - Read user calendars
@@ -210,7 +210,7 @@ Electron opens browser to Microsoft login
   ↓
 User authenticates & consents to permissions
   ↓
-Microsoft redirects to http://localhost:3000/auth/callback?code=...
+Microsoft redirects to http://localhost:3001/auth/callback?code=...
   ↓
 Local redirect server (Electron) captures code
   ↓

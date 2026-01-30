@@ -237,7 +237,7 @@ export class MicrosoftAuthService {
 
     // Start local redirect server
     const redirectUrl = new URL(config.redirectUri)
-    const port = parseInt(redirectUrl.port) || 3000
+    const port = parseInt(redirectUrl.port) || 3001
     const authCodePromise = this.startRedirectServer(port)
 
     // Build authorization URL

@@ -35,7 +35,7 @@ export const getMSGraphConfig = (): MSGraphConfig => {
   return {
     clientId: process.env.MS_GRAPH_CLIENT_ID || 'YOUR_CLIENT_ID_HERE',
     authority: 'https://login.microsoftonline.com/common',
-    redirectUri: 'http://localhost:3000/auth/callback',
+    redirectUri: 'http://localhost:3001/auth/callback',
     scopes: [
       'openid',
       'profile',
@@ -205,7 +205,7 @@ export class MicrosoftAuthService {
 **Purpose:** Temporary HTTP server to capture OAuth callback
 
 **Tasks:**
-- Create Express server on port 3000
+- Create Express server on port 3001
 - Handle GET /auth/callback route
 - Parse authorization code from query params
 - Send success page to browser
@@ -233,8 +233,8 @@ export class RedirectServer {
 ```
 
 **Verification:**
-- Server starts on port 3000
-- Can visit http://localhost:3000/auth/callback?code=test
+- Server starts on port 3001
+- Can visit http://localhost:3001/auth/callback?code=test
 - Returns authorization code
 - Auto-shuts down after success
 

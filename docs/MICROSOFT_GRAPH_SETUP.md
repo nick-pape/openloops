@@ -38,7 +38,7 @@ Fill out the registration form:
 
 ### Redirect URI
 - **Platform**: Select **"Public client/native (mobile & desktop)"**
-- **Redirect URI**: Enter `http://localhost:3000/auth/callback`
+- **Redirect URI**: Enter `http://localhost:3001/auth/callback`
   - This is where Microsoft will redirect after login
   - The app will start a local server to capture the authentication code
 
@@ -109,7 +109,7 @@ Create or edit `.env` file in the project root:
 ```bash
 # Microsoft Graph Configuration
 MS_GRAPH_CLIENT_ID=your-client-id-here
-MS_GRAPH_REDIRECT_URI=http://localhost:3000/auth/callback
+MS_GRAPH_REDIRECT_URI=http://localhost:3001/auth/callback
 ```
 
 ### Option B: Settings in Code (For Production Builds)
@@ -119,7 +119,7 @@ Edit `src/main/config/microsoft-graph.ts` (file will be created during implement
 ```typescript
 export const msGraphConfig = {
   clientId: 'your-client-id-here',
-  redirectUri: 'http://localhost:3000/auth/callback',
+  redirectUri: 'http://localhost:3001/auth/callback',
   authority: 'https://login.microsoftonline.com/common',
   scopes: ['openid', 'profile', 'offline_access', 'Calendars.Read', 'User.Read']
 }
@@ -150,7 +150,7 @@ Add a setting in the app where users enter their own Client ID:
 
 **Solution:**
 - Go to Azure Portal → App registrations → Your app → Authentication
-- Verify the redirect URI is exactly `http://localhost:3000/auth/callback`
+- Verify the redirect URI is exactly `http://localhost:3001/auth/callback`
 - Make sure it's under **"Public client/native"** platform, not "Web"
 
 ### Error: "AADSTS65001: The user or administrator has not consented"
@@ -172,10 +172,10 @@ Add a setting in the app where users enter their own Client ID:
 
 ### Error: "Cannot connect to local server"
 
-**Problem:** App can't start local redirect server on port 3000.
+**Problem:** App can't start local redirect server on port 3001.
 
 **Solution:**
-- Make sure port 3000 is not already in use
+- Make sure port 3001 is not already in use
 - Try closing other apps using that port
 - Check firewall isn't blocking localhost connections
 

@@ -286,7 +286,7 @@ export function SettingsView() {
                   <li>Search for "App registrations" → Click "+ New registration"</li>
                   <li>Name: "Open Loops Calendar Sync"</li>
                   <li>Account types: "Accounts in any organizational directory and personal Microsoft accounts"</li>
-                  <li>Redirect URI: Select "Public client/native" → Enter: <code>http://localhost:3000/auth/callback</code></li>
+                  <li>Redirect URI: Select "Public client/native" → Enter: <code>http://localhost:3001/auth/callback</code></li>
                   <li>Click "Register" and copy the <strong>Application (client) ID</strong></li>
                   <li>Go to Authentication → Enable "Allow public client flows" → Save</li>
                   <li>Go to API permissions → Add permission → Microsoft Graph → Delegated → <code>Calendars.Read</code></li>

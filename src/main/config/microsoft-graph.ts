@@ -29,7 +29,7 @@ export interface MicrosoftGraphConfig {
 export function getMicrosoftGraphConfig(settingsClientId?: string): MicrosoftGraphConfig {
   return {
     clientId: settingsClientId || process.env.MS_GRAPH_CLIENT_ID || '',
-    redirectUri: process.env.MS_GRAPH_REDIRECT_URI || 'http://localhost:3000/auth/callback',
+    redirectUri: process.env.MS_GRAPH_REDIRECT_URI || 'http://localhost:3001/auth/callback',
     authority: 'https://login.microsoftonline.com/common',
     scopes: [
       'openid',
