@@ -23,6 +23,7 @@ export function SettingsView() {
   const [msGraphConnecting, setMsGraphConnecting] = useState(false)
   const [msGraphClientId, setMsGraphClientId] = useState('')
   const [msGraphClientIdSaving, setMsGraphClientIdSaving] = useState(false)
+  const [msGraphShowInstructions, setMsGraphShowInstructions] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -269,23 +270,33 @@ export function SettingsView() {
 
         {!msGraphConfigured ? (
           <div>
-            <div className="info-box">
-              <p><strong>Setup Instructions:</strong></p>
-              <ol style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
-                <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener noreferrer">Azure Portal</a></li>
-                <li>Search for "App registrations" → Click "+ New registration"</li>
-                <li>Name: "Open Loops Calendar Sync"</li>
-                <li>Account types: "Accounts in any organizational directory and personal Microsoft accounts"</li>
-                <li>Redirect URI: Select "Public client/native" → Enter: <code>http://localhost:3000/auth/callback</code></li>
-                <li>Click "Register" and copy the <strong>Application (client) ID</strong></li>
-                <li>Go to Authentication → Enable "Allow public client flows" → Save</li>
-                <li>Go to API permissions → Add permission → Microsoft Graph → Delegated → <code>Calendars.Read</code></li>
-                <li>Paste your Client ID below</li>
-              </ol>
-              <p style={{ marginTop: '1rem' }}>See <code>docs/MICROSOFT_GRAPH_SETUP.md</code> for detailed instructions.</p>
-            </div>
+            <button
+              onClick={() => setMsGraphShowInstructions(!msGraphShowInstructions)}
+              className="collapse-button"
+              style={{ marginBottom: '1rem' }}
+            >
+              {msGraphShowInstructions ? '▼' : '▶'} Azure Setup Instructions
+            </button>
 
-            <div className="form-group" style={{ marginTop: '1rem' }}>
+            {msGraphShowInstructions && (
+              <div className="info-box" style={{ marginBottom: '1rem' }}>
+                <p><strong>Setup Instructions:</strong></p>
+                <ol style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
+                  <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener noreferrer">Azure Portal</a></li>
+                  <li>Search for "App registrations" → Click "+ New registration"</li>
+                  <li>Name: "Open Loops Calendar Sync"</li>
+                  <li>Account types: "Accounts in any organizational directory and personal Microsoft accounts"</li>
+                  <li>Redirect URI: Select "Public client/native" → Enter: <code>http://localhost:3000/auth/callback</code></li>
+                  <li>Click "Register" and copy the <strong>Application (client) ID</strong></li>
+                  <li>Go to Authentication → Enable "Allow public client flows" → Save</li>
+                  <li>Go to API permissions → Add permission → Microsoft Graph → Delegated → <code>Calendars.Read</code></li>
+                  <li>Paste your Client ID below</li>
+                </ol>
+                <p style={{ marginTop: '1rem' }}>See <code>docs/MICROSOFT_GRAPH_SETUP.md</code> for detailed instructions.</p>
+              </div>
+            )}
+
+            <div className="form-group">
               <label><strong>Azure Application (client) ID</strong></label>
               <div className="input-with-button">
                 <input
