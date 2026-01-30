@@ -73,8 +73,15 @@ export function SettingsView() {
       setMsGraphSelectedCalendars(selected)
 
       console.log('[Settings] Loaded calendars:', calendars.length, 'selected:', selected.length)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load calendars:', error)
+
+      // If account not in cache, user needs to reconnect
+      if (error.message && error.message.includes('Account not found in cache')) {
+        setMessage('Session expired. Please reconnect your Microsoft account.')
+        setMsGraphConnected(false)
+        setMsGraphProfile(null)
+      }
     }
     setMsGraphLoadingCalendars(false)
   }

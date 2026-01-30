@@ -1405,8 +1405,14 @@ Keep it concise and actionable.`
 
       const authService = getMicrosoftAuthService()
       const account = await authService.getAccountByHomeAccountId(storedAccount.homeAccountId)
+
       if (!account) {
-        throw new Error('Account not found in cache')
+        console.error('[MS Graph] Account not in MSAL cache, stored account:', storedAccount)
+
+        // Clear stored account since MSAL cache is out of sync
+        await tokenStorage.deleteAccount()
+
+        throw new Error('Session expired. Please reconnect your Microsoft account.')
       }
 
       // Initialize Graph client

@@ -98,15 +98,28 @@ export class MicrosoftAuthService {
       // Wrap persistence in cache plugin format expected by MSAL
       const cachePlugin = {
         beforeCacheAccess: async (cacheContext: any) => {
-          const data = await persistence.load()
-          if (data) {
-            cacheContext.tokenCache.deserialize(data)
+          try {
+            const data = await persistence.load()
+            if (data) {
+              console.log('[MS Auth] Loading cache data, size:', data.length)
+              cacheContext.tokenCache.deserialize(data)
+            } else {
+              console.log('[MS Auth] No cache data to load')
+            }
+          } catch (error) {
+            console.error('[MS Auth] Error loading cache:', error)
           }
         },
         afterCacheAccess: async (cacheContext: any) => {
           if (cacheContext.cacheHasChanged) {
-            const data = cacheContext.tokenCache.serialize()
-            await persistence.save(data)
+            try {
+              const data = cacheContext.tokenCache.serialize()
+              console.log('[MS Auth] Saving cache data, size:', data.length)
+              await persistence.save(data)
+              console.log('[MS Auth] Cache saved successfully')
+            } catch (error) {
+              console.error('[MS Auth] Error saving cache:', error)
+            }
           }
         }
       }
@@ -344,12 +357,31 @@ export class MicrosoftAuthService {
     await this.ensureInitialized()
 
     if (!this.pca) {
+      console.warn('[MS Auth] PCA not initialized when getting account')
       return null
     }
 
-    const cache = this.pca.getTokenCache()
-    const accounts = await cache.getAllAccounts()
-    return accounts.find((acc: AccountInfo) => acc.homeAccountId === homeAccountId) || null
+    try {
+      const cache = this.pca.getTokenCache()
+      const accounts = await cache.getAllAccounts()
+
+      console.log('[MS Auth] Found', accounts.length, 'accounts in cache, looking for:', homeAccountId)
+
+      if (accounts.length > 0) {
+        console.log('[MS Auth] Available accounts:', accounts.map(a => ({ id: a.homeAccountId, username: a.username })))
+      }
+
+      const account = accounts.find((acc: AccountInfo) => acc.homeAccountId === homeAccountId)
+
+      if (!account) {
+        console.warn('[MS Auth] Account not found in cache:', homeAccountId)
+      }
+
+      return account || null
+    } catch (error) {
+      console.error('[MS Auth] Error getting account from cache:', error)
+      return null
+    }
   }
 
   /**
