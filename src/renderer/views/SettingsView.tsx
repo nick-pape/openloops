@@ -16,11 +16,39 @@ export function SettingsView() {
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [mcpHttpStatus, setMcpHttpStatus] = useState<{ running: boolean; port: number } | null>(null)
   const [mcpHttpLoading, setMcpHttpLoading] = useState(false)
+  const [msGraphConfigured, setMsGraphConfigured] = useState(false)
+  const [msGraphConnected, setMsGraphConnected] = useState(false)
+  const [msGraphProfile, setMsGraphProfile] = useState<{ displayName: string; mail: string } | null>(null)
+  const [msGraphLastSync, setMsGraphLastSync] = useState<Date | null>(null)
+  const [msGraphConnecting, setMsGraphConnecting] = useState(false)
 
   useEffect(() => {
     loadSettings()
     loadMCPHttpStatus()
+    loadMsGraphStatus()
   }, [])
+
+  const loadMsGraphStatus = async () => {
+    try {
+      const configured = await window.electron.microsoftGraph.isConfigured()
+      setMsGraphConfigured(configured)
+
+      if (configured) {
+        const connected = await window.electron.microsoftGraph.isConnected()
+        setMsGraphConnected(connected)
+
+        if (connected) {
+          const profile = await window.electron.microsoftGraph.getUserProfile()
+          setMsGraphProfile(profile)
+
+          const lastSync = await window.electron.microsoftGraph.getLastSyncTime()
+          setMsGraphLastSync(lastSync)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load Microsoft Graph status:', error)
+    }
+  }
 
   const loadSettings = async () => {
     setLoading(true)
@@ -70,6 +98,34 @@ export function SettingsView() {
       setMessage('Failed to save settings')
     }
     setSaving(false)
+  }
+
+  const handleConnectMicrosoft = async () => {
+    setMsGraphConnecting(true)
+    try {
+      await window.electron.microsoftGraph.connect()
+      await loadMsGraphStatus()
+      setMessage('Microsoft account connected successfully')
+    } catch (error: any) {
+      console.error('Failed to connect Microsoft account:', error)
+      setMessage(`Failed to connect: ${error.message || 'Unknown error'}`)
+    }
+    setMsGraphConnecting(false)
+  }
+
+  const handleDisconnectMicrosoft = async () => {
+    if (!confirm('Disconnect Microsoft account? You will need to reconnect to sync calendar events.')) {
+      return
+    }
+
+    try {
+      await window.electron.microsoftGraph.disconnect()
+      await loadMsGraphStatus()
+      setMessage('Microsoft account disconnected')
+    } catch (error: any) {
+      console.error('Failed to disconnect Microsoft account:', error)
+      setMessage(`Failed to disconnect: ${error.message || 'Unknown error'}`)
+    }
   }
 
   const handleTestLLMConnection = async () => {
@@ -183,6 +239,45 @@ export function SettingsView() {
           {message}
         </div>
       )}
+
+      <div className="settings-section">
+        <h2>Microsoft Calendar Sync</h2>
+        {!msGraphConfigured ? (
+          <div className="info-box">
+            <p>Microsoft Calendar sync is not configured.</p>
+            <p>To enable this feature, set <code>MS_GRAPH_CLIENT_ID</code> in your .env file.</p>
+            <p>See <code>docs/MICROSOFT_GRAPH_SETUP.md</code> for setup instructions.</p>
+          </div>
+        ) : !msGraphConnected ? (
+          <div>
+            <p>Connect your Microsoft account to sync calendar events from Outlook or Microsoft 365.</p>
+            <button
+              onClick={handleConnectMicrosoft}
+              disabled={msGraphConnecting}
+              className="primary-button"
+            >
+              {msGraphConnecting ? 'Connecting...' : 'Connect Microsoft Account'}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="connection-info">
+              <p><strong>Status:</strong> Connected</p>
+              {msGraphProfile && (
+                <>
+                  <p><strong>Account:</strong> {msGraphProfile.displayName} ({msGraphProfile.mail})</p>
+                </>
+              )}
+              {msGraphLastSync && (
+                <p><strong>Last synced:</strong> {new Date(msGraphLastSync).toLocaleString()}</p>
+              )}
+            </div>
+            <button onClick={handleDisconnectMicrosoft} className="danger-button">
+              Disconnect Account
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="settings-section">
         <h2>Transcription Provider (OpenAI-Compatible API)</h2>

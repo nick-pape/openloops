@@ -175,8 +175,6 @@ const api = {
 
   // Calendar
   calendar: {
-    importICS: () => ipcRenderer.invoke('calendar:importICS'),
-    parseICS: (icsContent: string) => ipcRenderer.invoke('calendar:parseICS', icsContent),
     getEventsForDate: (dateStr: string) => ipcRenderer.invoke('calendar:getEventsForDate', dateStr)
   },
 

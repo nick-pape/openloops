@@ -131,3 +131,69 @@ button.small {
   font-size: 0.875rem;
   white-space: nowrap;
 }
+
+/* Microsoft Calendar Sync */
+.info-box {
+  background: #e7f3ff;
+  border-left: 4px solid #2196f3;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+.info-box p {
+  margin: 0.5rem 0;
+}
+
+.info-box code {
+  background: #fff;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.connection-info {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+.connection-info p {
+  margin: 0.5rem 0;
+}
+
+.primary-button {
+  background: #2196f3;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.danger-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.danger-button:hover {
+  background: #c82333;
+}

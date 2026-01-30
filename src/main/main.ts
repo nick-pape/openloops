@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+import 'dotenv/config'
+
 import { app, BrowserWindow, ipcMain, dialog, Menu, globalShortcut } from 'electron'
 import path from 'path'
 import fs from 'fs'
@@ -7,7 +10,6 @@ import { activeTaskService } from './work-mode/active-task-service'
 import { workModeWindow } from './windows/work-mode-window'
 import { textCaptureWindow } from './windows/text-capture-window'
 import { jobManager } from './workers/job-manager'
-import { parseICSFile } from './planning/ics-parser'
 import { DayPlanner } from './planning/day-planner'
 import { screenshotHandler } from './screenshot/screenshot-handler'
 import { ProviderFactory } from './ai/providers'
@@ -1245,39 +1247,6 @@ Keep it concise and actionable.`
   })
 
   // Calendar
-  ipcMain.handle('calendar:importICS', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Calendar Files', extensions: ['ics'] }]
-    })
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return null
-    }
-
-    const icsContent = fs.readFileSync(result.filePaths[0], 'utf-8')
-    return icsContent
-  })
-
-  ipcMain.handle('calendar:parseICS', async (_, icsContent: string) => {
-    const events = parseICSFile(icsContent)
-
-    // Clear existing events and import new ones
-    await repository.clearCalendarEvents()
-
-    for (const event of events) {
-      await repository.createCalendarEvent(
-        event.title,
-        event.startDt,
-        event.endDt,
-        event.uid,
-        JSON.stringify(event.raw)
-      )
-    }
-
-    return events
-  })
-
   ipcMain.handle('calendar:getEventsForDate', async (_, dateStr: string) => {
     const date = new Date(dateStr)
     return repository.getCalendarEventsForDate(date)
@@ -1305,7 +1274,7 @@ Keep it concise and actionable.`
       const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
 
       const authService = getMicrosoftAuthService()
-      if (!authService.isConfigured()) {
+      if (!(await authService.isConfigured())) {
         throw new Error('Microsoft Graph not configured. Please set MS_GRAPH_CLIENT_ID in .env file.')
       }
 

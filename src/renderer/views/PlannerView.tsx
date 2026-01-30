@@ -9,8 +9,9 @@ export function PlannerView() {
   const [plan, setPlan] = useState<DayPlan | null>(null)
   const [blocks, setBlocks] = useState<TimeBlock[]>([])
   const [loading, setLoading] = useState(false)
-  const [showICSInput, setShowICSInput] = useState(false)
-  const [icsText, setIcsText] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [msGraphConnected, setMsGraphConnected] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskEstimate, setNewTaskEstimate] = useState(30)
@@ -19,7 +20,22 @@ export function PlannerView() {
 
   useEffect(() => {
     loadData()
+    checkMsGraphConnection()
   }, [selectedDate])
+
+  const checkMsGraphConnection = async () => {
+    try {
+      const connected = await window.electron.microsoftGraph.isConnected()
+      setMsGraphConnected(connected)
+
+      if (connected) {
+        const lastSync = await window.electron.microsoftGraph.getLastSyncTime()
+        setLastSyncTime(lastSync)
+      }
+    } catch (error) {
+      console.error('Failed to check Microsoft Graph connection:', error)
+    }
+  }
 
   // Subscribe to domain events for live updates
   useEffect(() => {
@@ -59,25 +75,43 @@ export function PlannerView() {
     setLoading(false)
   }
 
-  const handleImportICSFile = async () => {
-    const icsContent = await window.electron.calendar.importICS()
-    if (icsContent) {
-      await window.electron.calendar.parseICS(icsContent)
+  const handleSyncCalendar = async () => {
+    setSyncing(true)
+    try {
+      // Calculate date range: today -1 day to today +6 days (7 day window)
+      const today = new Date()
+      const startDate = new Date(today)
+      startDate.setDate(today.getDate() - 1)
+      const endDate = new Date(today)
+      endDate.setDate(today.getDate() + 6)
+
+      const startDateStr = startDate.toISOString().split('T')[0]
+      const endDateStr = endDate.toISOString().split('T')[0]
+
+      const result = await window.electron.microsoftGraph.syncCalendar(startDateStr, endDateStr)
+
+      console.log(`[PlannerView] Synced ${result.imported} events from Microsoft Calendar`)
+      alert(`Synced ${result.imported} events from Microsoft Calendar`)
+
       await loadData()
+      await checkMsGraphConnection()
+    } catch (error: any) {
+      console.error('Failed to sync calendar:', error)
+      alert(`Failed to sync calendar: ${error.message || 'Unknown error'}`)
     }
+    setSyncing(false)
   }
 
-  const handleImportICSText = async () => {
-    if (!icsText.trim()) return
-
+  const handleConnectMicrosoft = async () => {
     try {
-      await window.electron.calendar.parseICS(icsText)
-      setIcsText('')
-      setShowICSInput(false)
-      await loadData()
-    } catch (error) {
-      console.error('Failed to parse ICS:', error)
-      alert('Failed to parse ICS content')
+      await window.electron.microsoftGraph.connect()
+      await checkMsGraphConnection()
+
+      // Auto-sync after connecting
+      await handleSyncCalendar()
+    } catch (error: any) {
+      console.error('Failed to connect Microsoft account:', error)
+      alert(`Failed to connect: ${error.message || 'Unknown error'}`)
     }
   }
 
@@ -262,25 +296,24 @@ export function PlannerView() {
           <div className="section-header">
             <h2>Calendar Events</h2>
             <div>
-              <button onClick={handleImportICSFile}>Import .ics File</button>
-              <button onClick={() => setShowICSInput(!showICSInput)}>
-                Paste ICS Text
-              </button>
+              {msGraphConnected ? (
+                <div className="sync-controls">
+                  <button onClick={handleSyncCalendar} disabled={syncing}>
+                    {syncing ? '⟳ Syncing...' : '⟳ Sync Microsoft Calendar'}
+                  </button>
+                  {lastSyncTime && (
+                    <span className="sync-info">
+                      Last synced: {new Date(lastSyncTime).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <button onClick={handleConnectMicrosoft}>
+                  Connect Microsoft Account
+                </button>
+              )}
             </div>
           </div>
-          {showICSInput && (
-            <div className="ics-input-panel">
-              <textarea
-                value={icsText}
-                onChange={(e) => setIcsText(e.target.value)}
-                placeholder="Paste ICS content here..."
-                rows={6}
-              />
-              <button onClick={handleImportICSText} disabled={!icsText.trim()}>
-                Import
-              </button>
-            </div>
-          )}
           <div className="events-list">
             {events.map((event) => (
               <div key={event.id} className="event-card">

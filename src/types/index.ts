@@ -291,8 +291,6 @@ declare global {
         onError: (callback: (data: any) => void) => () => void
       }
       calendar: {
-        importICS: () => Promise<string | null>
-        parseICS: (icsContent: string) => Promise<any[]>
         getEventsForDate: (dateStr: string) => Promise<CalendarEvent[]>
       }
       microsoftGraph: {

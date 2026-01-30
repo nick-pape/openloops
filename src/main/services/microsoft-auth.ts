@@ -3,6 +3,7 @@
  *
  * Handles OAuth 2.0 authentication flow with PKCE for Microsoft Graph API access.
  * Uses MSAL Node library for token management and automatic refresh.
+ * Persists token cache to disk for seamless re-authentication across app restarts.
  */
 
 import {
@@ -11,9 +12,12 @@ import {
   SilentFlowRequest,
   AccountInfo
 } from '@azure/msal-node'
+import { DataProtectionScope, PersistenceCreator } from '@azure/msal-node-extensions'
 import { getMicrosoftGraphConfig } from '../config/microsoft-graph'
+import { app } from 'electron'
 import * as http from 'http'
 import * as url from 'url'
+import * as path from 'path'
 
 export interface AuthTokens {
   accessToken: string
@@ -29,35 +33,89 @@ export interface AuthTokens {
 export class MicrosoftAuthService {
   private pca: PublicClientApplication | null = null
   private redirectServer: http.Server | null = null
+  private initPromise: Promise<void>
 
   constructor() {
-    this.initializeIfConfigured()
+    // Initialize asynchronously (cache setup requires async operations)
+    this.initPromise = this.initializeIfConfigured()
+  }
+
+  /**
+   * Wait for initialization to complete
+   */
+  async ensureInitialized(): Promise<void> {
+    await this.initPromise
   }
 
   /**
    * Initialize MSAL client if configuration is available
+   * Uses persistent cache to avoid re-authentication on every app launch
    */
-  private initializeIfConfigured() {
+  private async initializeIfConfigured() {
     const config = getMicrosoftGraphConfig()
     if (!config.clientId || config.clientId === 'your-client-id-here') {
       console.log('[MS Auth] Client ID not configured, skipping initialization')
       return
     }
 
-    this.pca = new PublicClientApplication({
-      auth: {
-        clientId: config.clientId,
-        authority: config.authority
+    try {
+      // Configure persistent cache (stored in app user data directory)
+      const cachePath = path.join(app.getPath('userData'), 'msal-cache.json')
+      const persistenceConfiguration = {
+        cachePath,
+        dataProtectionScope: DataProtectionScope.CurrentUser,
+        serviceName: 'OpenLoops-MSAL',
+        accountName: 'MSALCache'
       }
-    })
 
-    console.log('[MS Auth] MSAL client initialized')
+      console.log('[MS Auth] Initializing persistent cache:', cachePath)
+      const persistence = await PersistenceCreator.createPersistence(persistenceConfiguration)
+
+      // Wrap persistence in cache plugin format expected by MSAL
+      const cachePlugin = {
+        beforeCacheAccess: async (cacheContext: any) => {
+          const data = await persistence.load()
+          if (data) {
+            cacheContext.tokenCache.deserialize(data)
+          }
+        },
+        afterCacheAccess: async (cacheContext: any) => {
+          if (cacheContext.cacheHasChanged) {
+            const data = cacheContext.tokenCache.serialize()
+            await persistence.save(data)
+          }
+        }
+      }
+
+      this.pca = new PublicClientApplication({
+        auth: {
+          clientId: config.clientId,
+          authority: config.authority
+        },
+        cache: {
+          cachePlugin
+        }
+      })
+
+      console.log('[MS Auth] MSAL client initialized with persistent cache')
+    } catch (error) {
+      console.error('[MS Auth] Failed to initialize persistent cache:', error)
+      // Fallback to in-memory cache
+      this.pca = new PublicClientApplication({
+        auth: {
+          clientId: config.clientId,
+          authority: config.authority
+        }
+      })
+      console.log('[MS Auth] MSAL client initialized with in-memory cache (fallback)')
+    }
   }
 
   /**
    * Check if authentication service is configured and ready
    */
-  isConfigured(): boolean {
+  async isConfigured(): Promise<boolean> {
+    await this.ensureInitialized()
     return this.pca !== null
   }
 
@@ -145,6 +203,8 @@ export class MicrosoftAuthService {
    * Opens browser, waits for user to authenticate, returns tokens
    */
   async authenticate(): Promise<AuthTokens> {
+    await this.ensureInitialized()
+
     if (!this.pca) {
       throw new Error('Microsoft Graph authentication not configured. Please set MS_GRAPH_CLIENT_ID in .env file.')
     }
@@ -202,6 +262,8 @@ export class MicrosoftAuthService {
    * MSAL handles refresh tokens automatically via the token cache
    */
   async refreshAccessToken(account: AccountInfo): Promise<AuthTokens> {
+    await this.ensureInitialized()
+
     if (!this.pca) {
       throw new Error('Microsoft Graph authentication not configured')
     }
@@ -255,6 +317,8 @@ export class MicrosoftAuthService {
    * Get cached account by home account ID
    */
   async getAccountByHomeAccountId(homeAccountId: string): Promise<AccountInfo | null> {
+    await this.ensureInitialized()
+
     if (!this.pca) {
       return null
     }
@@ -268,6 +332,8 @@ export class MicrosoftAuthService {
    * Clear all cached tokens (sign out)
    */
   async signOut(account: AccountInfo): Promise<void> {
+    await this.ensureInitialized()
+
     if (!this.pca) {
       return
     }
