@@ -23,6 +23,10 @@ import { initLogger, closeLogger, logger } from './logger'
 import { ModelMessage } from '@ai-sdk/provider-utils'
 import { createAiSdkModel } from './llm/aiSdkClient'
 import { runAgentStream } from './ai/agent/openLoopsAgent'
+import { isMicrosoftGraphConfigured } from './config/microsoft-graph'
+import { getMicrosoftAuthService } from './services/microsoft-auth'
+import { MicrosoftTokenStorage } from './services/microsoft-token-storage'
+import { getMicrosoftGraphClient, resetMicrosoftGraphClient } from './services/microsoft-graph-client'
 import { closeAllClients as closeMcpClients } from './mcp/registry/clientPool'
 
 // Track active chat streams for cancellation
@@ -1254,7 +1258,6 @@ Keep it concise and actionable.`
 
   // Microsoft Graph Calendar Sync
   ipcMain.handle('microsoft-graph:isConfigured', async () => {
-    const { isMicrosoftGraphConfigured } = require('./config/microsoft-graph')
     const clientId = await repository.getSetting('ms_graph_client_id')
     return isMicrosoftGraphConfigured(clientId || undefined)
   })
@@ -1267,7 +1270,6 @@ Keep it concise and actionable.`
     await repository.setSetting('ms_graph_client_id', clientId)
 
     // Reinitialize auth service with new client ID
-    const { getMicrosoftAuthService } = require('./services/microsoft-auth')
     const authService = getMicrosoftAuthService()
 
     if (clientId && clientId.trim().length > 0) {
@@ -1276,7 +1278,6 @@ Keep it concise and actionable.`
   })
 
   ipcMain.handle('microsoft-graph:isConnected', async () => {
-    const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
     const tokenStorage = new MicrosoftTokenStorage({
       get: (key: string) => repository.getSetting(key),
       set: (key: string, value: string) => repository.setSetting(key, value)
@@ -1287,9 +1288,6 @@ Keep it concise and actionable.`
 
   ipcMain.handle('microsoft-graph:connect', async () => {
     try {
-      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
-      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
-
       // Get client ID from settings
       const clientId = await repository.getSetting('ms_graph_client_id')
 
@@ -1334,10 +1332,6 @@ Keep it concise and actionable.`
 
   ipcMain.handle('microsoft-graph:disconnect', async () => {
     try {
-      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
-      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
-      const { resetMicrosoftGraphClient } = require('./services/microsoft-graph-client')
-
       const tokenStorage = new MicrosoftTokenStorage({
         get: (key: string) => repository.getSetting(key),
         set: (key: string, value: string) => repository.setSetting(key, value)
@@ -1368,10 +1362,6 @@ Keep it concise and actionable.`
 
   ipcMain.handle('microsoft-graph:getUserProfile', async () => {
     try {
-      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
-      const { getMicrosoftGraphClient } = require('./services/microsoft-graph-client')
-      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
-
       const tokenStorage = new MicrosoftTokenStorage({
         get: (key: string) => repository.getSetting(key),
         set: (key: string, value: string) => repository.setSetting(key, value)
@@ -1403,10 +1393,6 @@ Keep it concise and actionable.`
 
   ipcMain.handle('microsoft-graph:syncCalendar', async (_, startDate: string, endDate: string) => {
     try {
-      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
-      const { getMicrosoftGraphClient } = require('./services/microsoft-graph-client')
-      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
-
       const tokenStorage = new MicrosoftTokenStorage({
         get: (key: string) => repository.getSetting(key),
         set: (key: string, value: string) => repository.setSetting(key, value)
@@ -1466,7 +1452,6 @@ Keep it concise and actionable.`
 
   ipcMain.handle('microsoft-graph:getLastSyncTime', async () => {
     try {
-      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
       const tokenStorage = new MicrosoftTokenStorage({
         get: (key: string) => repository.getSetting(key),
         set: (key: string, value: string) => repository.setSetting(key, value)
