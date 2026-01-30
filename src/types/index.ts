@@ -296,6 +296,8 @@ declare global {
       microsoftGraph: {
         isConfigured: () => Promise<boolean>
         isConnected: () => Promise<boolean>
+        getClientId: () => Promise<string | null>
+        setClientId: (clientId: string) => Promise<void>
         connect: () => Promise<MicrosoftAuthResponse>
         disconnect: () => Promise<void>
         getUserProfile: () => Promise<MicrosoftUserProfile | null>

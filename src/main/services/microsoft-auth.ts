@@ -48,6 +48,17 @@ export class MicrosoftAuthService {
   }
 
   /**
+   * Initialize MSAL client with a specific client ID
+   * Used when client ID is set via settings
+   */
+  async initializeWithClientId(clientId: string): Promise<void> {
+    console.log('[MS Auth] Reinitializing with new client ID')
+    this.pca = null
+    this.initPromise = this.initializeWithConfig(clientId)
+    await this.initPromise
+  }
+
+  /**
    * Initialize MSAL client if configuration is available
    * Uses persistent cache to avoid re-authentication on every app launch
    */
@@ -55,6 +66,19 @@ export class MicrosoftAuthService {
     const config = getMicrosoftGraphConfig()
     if (!config.clientId || config.clientId === 'your-client-id-here') {
       console.log('[MS Auth] Client ID not configured, skipping initialization')
+      return
+    }
+
+    await this.initializeWithConfig(config.clientId)
+  }
+
+  /**
+   * Initialize MSAL client with given client ID
+   */
+  private async initializeWithConfig(clientId: string) {
+    const config = getMicrosoftGraphConfig(clientId)
+    if (!config.clientId || config.clientId === 'your-client-id-here') {
+      console.log('[MS Auth] Invalid client ID, skipping initialization')
       return
     }
 

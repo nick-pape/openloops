@@ -23,11 +23,12 @@ export interface MicrosoftGraphConfig {
 }
 
 /**
- * Get Microsoft Graph configuration from environment variables or defaults
+ * Get Microsoft Graph configuration from settings or environment variables
+ * Priority: Database settings > Environment variables > Defaults
  */
-export function getMicrosoftGraphConfig(): MicrosoftGraphConfig {
+export function getMicrosoftGraphConfig(settingsClientId?: string): MicrosoftGraphConfig {
   return {
-    clientId: process.env.MS_GRAPH_CLIENT_ID || '',
+    clientId: settingsClientId || process.env.MS_GRAPH_CLIENT_ID || '',
     redirectUri: process.env.MS_GRAPH_REDIRECT_URI || 'http://localhost:3000/auth/callback',
     authority: 'https://login.microsoftonline.com/common',
     scopes: [
@@ -43,7 +44,7 @@ export function getMicrosoftGraphConfig(): MicrosoftGraphConfig {
 /**
  * Check if Microsoft Graph is configured
  */
-export function isMicrosoftGraphConfigured(): boolean {
-  const config = getMicrosoftGraphConfig()
+export function isMicrosoftGraphConfigured(settingsClientId?: string): boolean {
+  const config = getMicrosoftGraphConfig(settingsClientId)
   return config.clientId.length > 0 && config.clientId !== 'your-client-id-here'
 }

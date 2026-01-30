@@ -182,6 +182,8 @@ const api = {
   microsoftGraph: {
     isConfigured: () => ipcRenderer.invoke('microsoft-graph:isConfigured'),
     isConnected: () => ipcRenderer.invoke('microsoft-graph:isConnected'),
+    getClientId: () => ipcRenderer.invoke('microsoft-graph:getClientId'),
+    setClientId: (clientId: string) => ipcRenderer.invoke('microsoft-graph:setClientId', clientId),
     connect: () => ipcRenderer.invoke('microsoft-graph:connect'),
     disconnect: () => ipcRenderer.invoke('microsoft-graph:disconnect'),
     getUserProfile: () => ipcRenderer.invoke('microsoft-graph:getUserProfile'),

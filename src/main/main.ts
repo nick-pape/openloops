@@ -1255,7 +1255,24 @@ Keep it concise and actionable.`
   // Microsoft Graph Calendar Sync
   ipcMain.handle('microsoft-graph:isConfigured', async () => {
     const { isMicrosoftGraphConfigured } = require('./config/microsoft-graph')
-    return isMicrosoftGraphConfigured()
+    const clientId = await repository.getSetting('ms_graph_client_id')
+    return isMicrosoftGraphConfigured(clientId || undefined)
+  })
+
+  ipcMain.handle('microsoft-graph:getClientId', async () => {
+    return await repository.getSetting('ms_graph_client_id')
+  })
+
+  ipcMain.handle('microsoft-graph:setClientId', async (_, clientId: string) => {
+    await repository.setSetting('ms_graph_client_id', clientId)
+
+    // Reinitialize auth service with new client ID
+    const { getMicrosoftAuthService } = require('./services/microsoft-auth')
+    const authService = getMicrosoftAuthService()
+
+    if (clientId && clientId.trim().length > 0) {
+      await authService.initializeWithClientId(clientId.trim())
+    }
   })
 
   ipcMain.handle('microsoft-graph:isConnected', async () => {
@@ -1273,9 +1290,18 @@ Keep it concise and actionable.`
       const { getMicrosoftAuthService } = require('./services/microsoft-auth')
       const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
 
+      // Get client ID from settings
+      const clientId = await repository.getSetting('ms_graph_client_id')
+
       const authService = getMicrosoftAuthService()
+
+      // Reinitialize if we have a client ID in settings
+      if (clientId && clientId.trim().length > 0) {
+        await authService.initializeWithClientId(clientId.trim())
+      }
+
       if (!(await authService.isConfigured())) {
-        throw new Error('Microsoft Graph not configured. Please set MS_GRAPH_CLIENT_ID in .env file.')
+        throw new Error('Microsoft Graph not configured. Please set your Azure Client ID in Settings.')
       }
 
       // Authenticate user via browser OAuth flow

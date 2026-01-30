@@ -153,6 +153,21 @@ button.small {
   font-size: 0.9em;
 }
 
+.info-box ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.info-box li {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.info-box a {
+  color: #2196f3;
+  text-decoration: underline;
+}
+
 .connection-info {
   background: #fff;
   border: 1px solid #ddd;

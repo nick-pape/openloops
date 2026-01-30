@@ -21,6 +21,8 @@ export function SettingsView() {
   const [msGraphProfile, setMsGraphProfile] = useState<{ displayName: string; mail: string } | null>(null)
   const [msGraphLastSync, setMsGraphLastSync] = useState<Date | null>(null)
   const [msGraphConnecting, setMsGraphConnecting] = useState(false)
+  const [msGraphClientId, setMsGraphClientId] = useState('')
+  const [msGraphClientIdSaving, setMsGraphClientIdSaving] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -30,6 +32,10 @@ export function SettingsView() {
 
   const loadMsGraphStatus = async () => {
     try {
+      // Load client ID
+      const clientId = await window.electron.microsoftGraph.getClientId()
+      setMsGraphClientId(clientId || '')
+
       const configured = await window.electron.microsoftGraph.isConfigured()
       setMsGraphConfigured(configured)
 
@@ -126,6 +132,24 @@ export function SettingsView() {
       console.error('Failed to disconnect Microsoft account:', error)
       setMessage(`Failed to disconnect: ${error.message || 'Unknown error'}`)
     }
+  }
+
+  const handleSaveClientId = async () => {
+    if (!msGraphClientId.trim()) {
+      setMessage('Please enter a valid Client ID')
+      return
+    }
+
+    setMsGraphClientIdSaving(true)
+    try {
+      await window.electron.microsoftGraph.setClientId(msGraphClientId.trim())
+      await loadMsGraphStatus()
+      setMessage('Client ID saved successfully. You can now connect your Microsoft account.')
+    } catch (error: any) {
+      console.error('Failed to save Client ID:', error)
+      setMessage(`Failed to save Client ID: ${error.message || 'Unknown error'}`)
+    }
+    setMsGraphClientIdSaving(false)
   }
 
   const handleTestLLMConnection = async () => {
@@ -242,15 +266,74 @@ export function SettingsView() {
 
       <div className="settings-section">
         <h2>Microsoft Calendar Sync</h2>
+
         {!msGraphConfigured ? (
-          <div className="info-box">
-            <p>Microsoft Calendar sync is not configured.</p>
-            <p>To enable this feature, set <code>MS_GRAPH_CLIENT_ID</code> in your .env file.</p>
-            <p>See <code>docs/MICROSOFT_GRAPH_SETUP.md</code> for setup instructions.</p>
+          <div>
+            <div className="info-box">
+              <p><strong>Setup Instructions:</strong></p>
+              <ol style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
+                <li>Go to <a href="https://portal.azure.com" target="_blank" rel="noopener noreferrer">Azure Portal</a></li>
+                <li>Search for "App registrations" → Click "+ New registration"</li>
+                <li>Name: "Open Loops Calendar Sync"</li>
+                <li>Account types: "Accounts in any organizational directory and personal Microsoft accounts"</li>
+                <li>Redirect URI: Select "Public client/native" → Enter: <code>http://localhost:3000/auth/callback</code></li>
+                <li>Click "Register" and copy the <strong>Application (client) ID</strong></li>
+                <li>Go to Authentication → Enable "Allow public client flows" → Save</li>
+                <li>Go to API permissions → Add permission → Microsoft Graph → Delegated → <code>Calendars.Read</code></li>
+                <li>Paste your Client ID below</li>
+              </ol>
+              <p style={{ marginTop: '1rem' }}>See <code>docs/MICROSOFT_GRAPH_SETUP.md</code> for detailed instructions.</p>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label><strong>Azure Application (client) ID</strong></label>
+              <div className="input-with-button">
+                <input
+                  type="text"
+                  value={msGraphClientId}
+                  onChange={(e) => setMsGraphClientId(e.target.value)}
+                  placeholder="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <button
+                  onClick={handleSaveClientId}
+                  disabled={msGraphClientIdSaving || !msGraphClientId.trim()}
+                  className="test-button"
+                >
+                  {msGraphClientIdSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+              <small className="help-text">
+                Paste the Application (client) ID from Azure Portal
+              </small>
+            </div>
           </div>
         ) : !msGraphConnected ? (
           <div>
-            <p>Connect your Microsoft account to sync calendar events from Outlook or Microsoft 365.</p>
+            <div className="form-group">
+              <label><strong>Azure Application (client) ID</strong></label>
+              <div className="input-with-button">
+                <input
+                  type="text"
+                  value={msGraphClientId}
+                  onChange={(e) => setMsGraphClientId(e.target.value)}
+                  placeholder="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <button
+                  onClick={handleSaveClientId}
+                  disabled={msGraphClientIdSaving || !msGraphClientId.trim()}
+                  className="test-button"
+                >
+                  {msGraphClientIdSaving ? 'Saving...' : 'Update'}
+                </button>
+              </div>
+              <small className="help-text">
+                Your Azure Client ID is configured
+              </small>
+            </div>
+
+            <p style={{ marginTop: '1rem' }}>Connect your Microsoft account to sync calendar events from Outlook or Microsoft 365.</p>
             <button
               onClick={handleConnectMicrosoft}
               disabled={msGraphConnecting}
