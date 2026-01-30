@@ -407,6 +407,58 @@ export class Repository {
     await db.delete(schema.calendarEvents)
   }
 
+  async upsertMicrosoftGraphEvent(externalUid: string, title: string, startDt: Date, endDt: Date, rawJson: string) {
+    const db = getDatabase()
+
+    // Check if event already exists
+    const existing = await db.select().from(schema.calendarEvents)
+      .where(eq(schema.calendarEvents.externalUid, externalUid))
+      .limit(1)
+
+    if (existing.length > 0) {
+      // Update existing event
+      await db.update(schema.calendarEvents)
+        .set({
+          title,
+          startDt,
+          endDt,
+          rawJson,
+          importedAt: new Date()
+        })
+        .where(eq(schema.calendarEvents.externalUid, externalUid))
+
+      return { id: existing[0].id, updated: true }
+    } else {
+      // Insert new event
+      const id = uuidv4()
+      await db.insert(schema.calendarEvents).values({
+        id,
+        source: 'microsoft-graph',
+        externalUid,
+        title,
+        startDt,
+        endDt,
+        rawJson,
+        importedAt: new Date()
+      })
+
+      return { id, updated: false }
+    }
+  }
+
+  async getMicrosoftGraphEvents() {
+    const db = getDatabase()
+    return db.select().from(schema.calendarEvents)
+      .where(eq(schema.calendarEvents.source, 'microsoft-graph'))
+      .orderBy(schema.calendarEvents.startDt)
+  }
+
+  async deleteMicrosoftGraphEvents() {
+    const db = getDatabase()
+    await db.delete(schema.calendarEvents)
+      .where(eq(schema.calendarEvents.source, 'microsoft-graph'))
+  }
+
   // Planning Profiles
   async createPlanningProfile(name: string, instructionsText: string, constraintsJson?: string) {
     const db = getDatabase()

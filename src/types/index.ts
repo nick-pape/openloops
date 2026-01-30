@@ -131,6 +131,24 @@ export interface CalendarEvent {
   importedAt: Date
 }
 
+export interface MicrosoftAuthResponse {
+  accessToken: string
+  refreshToken: string
+  expiresOn: Date
+  account: {
+    username: string  // email
+    name: string
+    homeAccountId: string
+  }
+}
+
+export interface MicrosoftUserProfile {
+  id: string
+  displayName: string
+  mail: string
+  userPrincipalName: string
+}
+
 export interface TimeBlock {
   id?: string
   startDt: Date
@@ -276,6 +294,15 @@ declare global {
         importICS: () => Promise<string | null>
         parseICS: (icsContent: string) => Promise<any[]>
         getEventsForDate: (dateStr: string) => Promise<CalendarEvent[]>
+      }
+      microsoftGraph: {
+        isConfigured: () => Promise<boolean>
+        isConnected: () => Promise<boolean>
+        connect: () => Promise<MicrosoftAuthResponse>
+        disconnect: () => Promise<void>
+        getUserProfile: () => Promise<MicrosoftUserProfile | null>
+        syncCalendar: (startDate: string, endDate: string) => Promise<{ imported: number; updated: number }>
+        getLastSyncTime: () => Promise<Date | null>
       }
       planning: {
         // Legacy (deprecated)

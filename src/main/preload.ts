@@ -180,6 +180,17 @@ const api = {
     getEventsForDate: (dateStr: string) => ipcRenderer.invoke('calendar:getEventsForDate', dateStr)
   },
 
+  // Microsoft Graph Calendar Sync
+  microsoftGraph: {
+    isConfigured: () => ipcRenderer.invoke('microsoft-graph:isConfigured'),
+    isConnected: () => ipcRenderer.invoke('microsoft-graph:isConnected'),
+    connect: () => ipcRenderer.invoke('microsoft-graph:connect'),
+    disconnect: () => ipcRenderer.invoke('microsoft-graph:disconnect'),
+    getUserProfile: () => ipcRenderer.invoke('microsoft-graph:getUserProfile'),
+    syncCalendar: (startDate: string, endDate: string) => ipcRenderer.invoke('microsoft-graph:syncCalendar', startDate, endDate),
+    getLastSyncTime: () => ipcRenderer.invoke('microsoft-graph:getLastSyncTime')
+  },
+
   // Planning
   planning: {
     generate: (dateStr: string, config?: any) => ipcRenderer.invoke('planning:generate', dateStr, config),

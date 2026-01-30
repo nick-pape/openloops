@@ -1283,6 +1283,206 @@ Keep it concise and actionable.`
     return repository.getCalendarEventsForDate(date)
   })
 
+  // Microsoft Graph Calendar Sync
+  ipcMain.handle('microsoft-graph:isConfigured', async () => {
+    const { isMicrosoftGraphConfigured } = require('./config/microsoft-graph')
+    return isMicrosoftGraphConfigured()
+  })
+
+  ipcMain.handle('microsoft-graph:isConnected', async () => {
+    const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+    const tokenStorage = new MicrosoftTokenStorage({
+      get: (key: string) => repository.getSetting(key),
+      set: (key: string, value: string) => repository.setSetting(key, value)
+    })
+    const account = await tokenStorage.getAccount()
+    return account !== null
+  })
+
+  ipcMain.handle('microsoft-graph:connect', async () => {
+    try {
+      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
+      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+
+      const authService = getMicrosoftAuthService()
+      if (!authService.isConfigured()) {
+        throw new Error('Microsoft Graph not configured. Please set MS_GRAPH_CLIENT_ID in .env file.')
+      }
+
+      // Authenticate user via browser OAuth flow
+      const tokens = await authService.authenticate()
+
+      // Store account information securely
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+      await tokenStorage.storeAccount({
+        homeAccountId: tokens.account.homeAccountId,
+        username: tokens.account.username,
+        name: tokens.account.name
+      })
+
+      console.log('[MS Graph] Successfully connected:', tokens.account.username)
+
+      return {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresOn: tokens.expiresOn,
+        account: tokens.account
+      }
+    } catch (error: any) {
+      console.error('[MS Graph] Connection failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:disconnect', async () => {
+    try {
+      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
+      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+      const { resetMicrosoftGraphClient } = require('./services/microsoft-graph-client')
+
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+
+      // Get account to sign out
+      const storedAccount = await tokenStorage.getAccount()
+      if (storedAccount) {
+        const authService = getMicrosoftAuthService()
+        const account = await authService.getAccountByHomeAccountId(storedAccount.homeAccountId)
+        if (account) {
+          await authService.signOut(account)
+        }
+      }
+
+      // Delete stored credentials
+      await tokenStorage.deleteAccount()
+
+      // Reset Graph client
+      resetMicrosoftGraphClient()
+
+      console.log('[MS Graph] Successfully disconnected')
+    } catch (error: any) {
+      console.error('[MS Graph] Disconnect failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:getUserProfile', async () => {
+    try {
+      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
+      const { getMicrosoftGraphClient } = require('./services/microsoft-graph-client')
+      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+
+      const storedAccount = await tokenStorage.getAccount()
+      if (!storedAccount) {
+        return null
+      }
+
+      const authService = getMicrosoftAuthService()
+      const account = await authService.getAccountByHomeAccountId(storedAccount.homeAccountId)
+      if (!account) {
+        return null
+      }
+
+      // Initialize Graph client
+      const graphClient = getMicrosoftGraphClient()
+      await graphClient.initialize(account)
+
+      // Get user profile
+      const profile = await graphClient.getUserProfile()
+      return profile
+    } catch (error: any) {
+      console.error('[MS Graph] Failed to get user profile:', error)
+      return null
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:syncCalendar', async (_, startDate: string, endDate: string) => {
+    try {
+      const { getMicrosoftAuthService } = require('./services/microsoft-auth')
+      const { getMicrosoftGraphClient } = require('./services/microsoft-graph-client')
+      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+
+      const storedAccount = await tokenStorage.getAccount()
+      if (!storedAccount) {
+        throw new Error('Not connected to Microsoft account')
+      }
+
+      const authService = getMicrosoftAuthService()
+      const account = await authService.getAccountByHomeAccountId(storedAccount.homeAccountId)
+      if (!account) {
+        throw new Error('Account not found in cache')
+      }
+
+      // Initialize Graph client
+      const graphClient = getMicrosoftGraphClient()
+      await graphClient.initialize(account)
+
+      // Fetch calendar events
+      const events = await graphClient.getCalendarEvents(startDate, endDate)
+
+      console.log(`[MS Graph] Syncing ${events.length} calendar events...`)
+
+      let imported = 0
+      let updated = 0
+
+      // Upsert each event
+      for (const event of events) {
+        const result = await repository.upsertMicrosoftGraphEvent(
+          event.id,
+          event.subject || '(No title)',
+          new Date(event.start.dateTime),
+          new Date(event.end.dateTime),
+          JSON.stringify(event)
+        )
+
+        if (result.updated) {
+          updated++
+        } else {
+          imported++
+        }
+      }
+
+      // Store last sync time
+      await tokenStorage.storeLastSyncTime(new Date())
+
+      console.log(`[MS Graph] Sync complete: ${imported} imported, ${updated} updated`)
+
+      return { imported, updated }
+    } catch (error: any) {
+      console.error('[MS Graph] Calendar sync failed:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('microsoft-graph:getLastSyncTime', async () => {
+    try {
+      const { MicrosoftTokenStorage } = require('./services/microsoft-token-storage')
+      const tokenStorage = new MicrosoftTokenStorage({
+        get: (key: string) => repository.getSetting(key),
+        set: (key: string, value: string) => repository.setSetting(key, value)
+      })
+      return await tokenStorage.getLastSyncTime()
+    } catch (error: any) {
+      console.error('[MS Graph] Failed to get last sync time:', error)
+      return null
+    }
+  })
+
   // Day planning
   ipcMain.handle('planning:generate', async (_, dateStr: string, configOverrides?: any) => {
     const date = new Date(dateStr)
