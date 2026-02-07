@@ -52,18 +52,18 @@
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "@vitejs/plugin-react": "^4.2.1",
-    "drizzle-kit": "^0.20.10",
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1",
+    "drizzle-kit": "^0.31.8",
+    "electron": "^40.2.1",
+    "electron-builder": "^26.7.0",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.11",
+    "vite": "^7.3.1",
     "vite-plugin-electron": "^0.28.2",
     "vite-plugin-electron-renderer": "^0.14.5",
-    "vitest": "^1.1.1"
+    "vitest": "^2.0.5"
   },
   "build": {
     "appId": "com.openloops.app",
