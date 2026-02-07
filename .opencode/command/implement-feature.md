@@ -1,7 +1,6 @@
 ---
 description: Implement a SINGLE feature from `research/feature-list.json` based on the provided execution plan.
 agent: build
-model: anthropic/claude-opus-4-5
 ---
 
 You are tasked with implementing a SINGLE feature from the `research/feature-list.json` file.
