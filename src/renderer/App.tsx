@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import confetti from 'canvas-confetti'
 import { Sidebar } from './components/Sidebar'
 import { ChatPane } from './components/ChatPane'
 import { ErrorNotification } from './components/ErrorNotification'
@@ -41,9 +42,38 @@ function App() {
   const isWorkModeWindow = window.location.hash === '#/work-mode'
   const isTextCaptureWindow = window.location.hash === '#/text-capture'
 
+  const fireConfetti = useCallback(() => {
+    const duration = 1500
+    const end = Date.now() + duration
+
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0, y: 0.6 },
+        colors: ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#f472b6'],
+      })
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1, y: 0.6 },
+        colors: ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#f472b6'],
+      })
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame)
+      }
+    }
+
+    frame()
+  }, [])
+
   useEffect(() => {
     if (!isWorkModeWindow && !isTextCaptureWindow) {
       loadProjects()
+      fireConfetti()
     }
   }, [])
 
