@@ -54,4 +54,6 @@ $RECYCLE.BIN/
 .cache/
 
 # Claude Code
-.claude/
+.claude/settings.json
+
+nul
