@@ -28,7 +28,7 @@ type View =
   | { type: 'agents' }
   | { type: 'mcp-servers' }
 
-function App() {
+ function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [currentView, setCurrentView] = useState<View>({ type: 'welcome' })
   const [chatCollapsed, setChatCollapsed] = useState(false)
@@ -170,13 +170,11 @@ function App() {
     setCurrentView({ type: 'project', projectId: project.id })
   }
 
-  const handleDeleteProject = async (id: string) => {
-    await window.electron.projects.delete(id)
-    setProjects(projects.filter(p => p.id !== id))
-    if (currentView.type === 'project' && currentView.projectId === id) {
-      setCurrentView({ type: 'welcome' })
-    }
-  }
+  // Set sidebar width CSS variable
+  useEffect(() => {
+    const html = document.documentElement as HTMLElement
+    html.style.setProperty('--sidebar-width', '250px')
+  }, [])
 
   // Render Work Mode window separately (no sidebar, different layout)
   if (isWorkModeWindow) {
