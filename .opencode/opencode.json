@@ -15,5 +15,34 @@
     "webfetch": "allow",
     "doom_loop": "allow",
     "external_directory": "allow"
+  },
+  "provider": {
+    "ollama": {
+      "name": "Ollama",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": {
+        "devstral-small-2:98k": {
+          "name": "Devstral Small 2 (98k) - OpenLoops",
+          "limit": {
+            "context": 98304,
+            "output": 8192
+          }
+        },
+        "devstral-small-2:131k": {
+          "name": "Devstral Small 2 (131k) - OpenLoops",
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          }
+        }
+      },
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      }
+    }
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
   }
 }
