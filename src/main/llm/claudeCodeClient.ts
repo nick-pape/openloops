@@ -83,6 +83,7 @@ export function createClaudeCodeModel(config: {
 
   const provider = createClaudeCode({
     defaultSettings: {
+      pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_PATH || 'claude',
       systemPrompt: config.systemPrompt,
       mcpServers: {
         openloops: {

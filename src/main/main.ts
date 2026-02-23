@@ -35,7 +35,7 @@ const activeChatStreams = new Map<string, AbortController>()
 
 let mainWindow: BrowserWindow | null = null
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+const isDev = (process.env.NODE_ENV === 'development' || !app.isPackaged) && !process.env.OPEN_LOOPS_FORCE_FILE_LOAD
 
 // Global error handlers - catch uncaught exceptions and show user-friendly errors
 process.on('uncaughtException', (error) => {
