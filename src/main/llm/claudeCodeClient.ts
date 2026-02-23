@@ -95,6 +95,7 @@ export function createClaudeCodeModel(config: {
       allowedTools: ALLOWED_MCP_TOOLS,
       disallowedTools: DISALLOWED_BUILTIN_TOOLS,
       permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
       persistSession: false,
     },
   })

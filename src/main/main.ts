@@ -703,196 +703,239 @@ Keep it concise and actionable.`
         }
       }
 
-      // Build system prompt based on context type
-      let systemPrompt = `You are an assistant for Open Loops.\n\n`
+      // Build system prompt based on context type and provider
+      const isClaudeCode = llmType === 'claude-code'
+      let systemPrompt = ''
 
-      // Add general context
-      if (context.general.projects.length > 0) {
-        systemPrompt += `Projects in workspace: ${context.general.projects.map((p: any) => p.name).join(', ')}\n`
-      }
-      systemPrompt += `Total open tasks: ${context.general.openTaskCount}\n\n`
+      if (isClaudeCode) {
+        // Claude Code: lean prompt — let the model use tools to discover data
+        systemPrompt = `You are an assistant for Open Loops, a local-first project notes and day planning app.
+You have MCP tools to query projects, captures, tasks, summaries, and the day planner. USE THEM to answer questions — don't guess.\n\n`
 
-      // Add active context based on type
-      switch (context.active.type) {
-        case 'project': {
-          const projectId = context.active.data.projectId
-          const project = await repository.getProject(projectId)
-          const allCaptures = await repository.getCapturesByProject(projectId)
-          const recentCaptures = allCaptures.filter((c: any) => c.type !== 'chat').slice(0, 5)
-
-          systemPrompt += `Current Context: Project "${project.name}"\n`
-          systemPrompt += `Project ID: ${projectId}\n`
-          systemPrompt += `Created: ${project.createdAt.toLocaleDateString()}\n`
-          if (recentCaptures.length > 0) {
-            systemPrompt += `Recent captures: ${recentCaptures.map((c: any) => c.title || 'Untitled').join(', ')}\n`
+        switch (context.active.type) {
+          case 'project': {
+            const projectId = context.active.data.projectId
+            const project = await repository.getProject(projectId)
+            systemPrompt += `Current Context: Project "${project.name}" (ID: ${projectId})\n`
+            systemPrompt += `Use projects_get_summary, get_captures, tasks_list, etc. to answer questions about this project.\n`
+            break
           }
-          systemPrompt += `Open tasks in this project: ${context.active.data.openTaskCount}\n\n`
-          systemPrompt += `When creating/modifying, use project ID: ${projectId}\n`
-          break
-        }
-        case 'planner': {
-          const today = new Date().toISOString().split('T')[0]
-          // Get user's timezone offset
-          const offsetMinutes = new Date().getTimezoneOffset()
-          const offsetHours = -offsetMinutes / 60 // Negative because getTimezoneOffset returns negative for positive offsets
-          const offsetSign = offsetHours >= 0 ? '+' : '-'
-          const offsetFormatted = `UTC${offsetSign}${Math.abs(offsetHours)}`
+          case 'planner': {
+            const today = new Date().toISOString().split('T')[0]
+            const offsetMinutes = new Date().getTimezoneOffset()
+            const offsetHours = -offsetMinutes / 60
+            const offsetSign = offsetHours >= 0 ? '+' : '-'
+            const offsetFormatted = `UTC${offsetSign}${Math.abs(offsetHours)}`
 
-          systemPrompt += `Current Context: Day Planner\n\n`
-          systemPrompt += `Today's date: ${today}\n`
-          systemPrompt += `User timezone: ${offsetFormatted}\n\n`
-          systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
-          systemPrompt += `## Workflow:\n`
-          systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
-          systemPrompt += `2. Get calendar events: calendar_day_events_get(date) - these are FIXED, don't schedule over them\n`
-          systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
-          systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
-          systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
-          systemPrompt += `   - CRITICAL: Use ISO datetime format WITHOUT timezone suffix: YYYY-MM-DDTHH:mm:ss\n`
-          systemPrompt += `   - Times are in user's LOCAL timezone (${offsetFormatted})\n`
-          systemPrompt += `   - When user says "9am", use: "${today}T09:00:00" (NO Z suffix!)\n`
-          systemPrompt += `   - When user says "5pm", use: "${today}T17:00:00" (NO Z suffix!)\n`
-          systemPrompt += `   - The system will automatically convert to UTC for storage\n`
-          systemPrompt += `   - locked: Set to FALSE by default - let user lock blocks manually via UI\n`
-          systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
-          systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
-          systemPrompt += `## Uncommitting Plans:\n`
-          systemPrompt += `- To "uncommit" or "unlock" a plan: planner_draft_uncommit(date)\n`
-          systemPrompt += `- This reverts a committed plan back to draft status for editing\n`
-          systemPrompt += `- After uncommitting, you can add/edit/delete blocks again\n\n`
-          systemPrompt += `## Guidelines:\n`
-          systemPrompt += `- Don't call projects_* tools unless user specifically asks about projects\n`
-          systemPrompt += `- Focus on planner_* and tasks_* tools\n`
-          systemPrompt += `- Add 4-8 blocks typically (don't overplan)\n`
-          systemPrompt += `- Respect calendar events (they're fixed)\n`
-          systemPrompt += `- DON'T commit automatically - ask user first or let them review\n`
-          systemPrompt += `- Set locked=false on blocks - users lock them manually via UI buttons\n`
-          systemPrompt += `- If user asks to "uncommit" or "unlock" plan, use planner_draft_uncommit(date)\n`
-          systemPrompt += `- Use planner_day_get(date) to check plan status (draft vs committed)\n`
-          break
+            systemPrompt += `Current Context: Day Planner\n`
+            systemPrompt += `Today's date: ${today}\n`
+            systemPrompt += `User timezone: ${offsetFormatted}\n\n`
+            systemPrompt += `## Planner Workflow (draft → commit):\n`
+            systemPrompt += `1. planner_draft_create(date) — create a draft\n`
+            systemPrompt += `2. calendar_day_events_get(date) — get FIXED calendar events\n`
+            systemPrompt += `3. tasks_list_candidates_for_day(date) — get schedulable tasks\n`
+            systemPrompt += `4. planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
+            systemPrompt += `   - kind: 'task' | 'focus' | 'break' | 'buffer' | 'admin'\n`
+            systemPrompt += `   - CRITICAL: ISO datetime WITHOUT timezone: YYYY-MM-DDTHH:mm:ss (local time)\n`
+            systemPrompt += `   - "9am" → "${today}T09:00:00", "5pm" → "${today}T17:00:00" (NO Z suffix)\n`
+            systemPrompt += `   - locked: false by default\n`
+            systemPrompt += `5. planner_draft_validate(draftPlanId) — check for overlaps\n`
+            systemPrompt += `6. planner_draft_commit(date) — only when user approves\n`
+            systemPrompt += `- planner_draft_uncommit(date) — revert committed plan to draft\n`
+            systemPrompt += `- planner_day_get(date) — check plan status\n\n`
+            systemPrompt += `Guidelines: 4-8 blocks typical, respect calendar events, don't auto-commit.\n`
+            break
+          }
+          case 'tasks':
+            systemPrompt += `Current Context: All Tasks View\n`
+            break
+          case 'settings':
+            systemPrompt += `Current Context: Settings\n`
+            break
+          default:
+            systemPrompt += `Current Context: ${context.active.type}\n`
         }
-        case 'tasks': {
-          systemPrompt += `Current Context: All Tasks View\n`
-          systemPrompt += `Viewing all open tasks across all projects.\n`
-          break
-        }
-        case 'agents': {
-          systemPrompt += `Current Context: Agents Configuration\n`
-          systemPrompt += `You can help with understanding and configuring agents.\n`
-          break
-        }
-        case 'mcp-servers': {
-          systemPrompt += `Current Context: MCP Servers Configuration\n`
-          systemPrompt += `You can help with MCP server setup and configuration.\n`
-          break
-        }
-        case 'settings': {
-          systemPrompt += `Current Context: Settings\n`
-          systemPrompt += `You can help with configuring Open Loops settings.\n`
-          break
-        }
-        default: {
-          systemPrompt += `Current Context: General\n`
-          systemPrompt += `You can help with projects, tasks, planning, and configuration.\n`
-        }
-      }
+      } else {
+        // Local/weak models: inline context so they don't need tool calls
+        systemPrompt = `You are an assistant for Open Loops.\n\n`
 
-      // Add attachment context if provided - resolve references at send time
-      if (attachments && attachments.length > 0) {
-        console.log('[Chat] Resolving attachments:', attachments.length)
-        systemPrompt += `\n\n## Attached Context:\n`
-        systemPrompt += `The user has attached the following items for reference:\n\n`
+        if (context.general.projects.length > 0) {
+          systemPrompt += `Projects in workspace: ${context.general.projects.map((p: any) => p.name).join(', ')}\n`
+        }
+        systemPrompt += `Total open tasks: ${context.general.openTaskCount}\n\n`
 
-        for (const attachment of attachments) {
-          console.log('[Chat] Resolving attachment:', attachment.type, attachment.id)
+        switch (context.active.type) {
+          case 'project': {
+            const projectId = context.active.data.projectId
+            const project = await repository.getProject(projectId)
+            const allCaptures = await repository.getCapturesByProject(projectId)
+            const recentCaptures = allCaptures.filter((c: any) => c.type !== 'chat').slice(0, 5)
 
-          if (attachment.type === 'capture') {
-            // Fetch latest capture data from database
-            const capture = await repository.getCapture(attachment.id)
-            if (!capture) {
-              console.warn('[Chat] Capture not found:', attachment.id)
-              continue
+            systemPrompt += `Current Context: Project "${project.name}"\n`
+            systemPrompt += `Project ID: ${projectId}\n`
+            systemPrompt += `Created: ${project.createdAt.toLocaleDateString()}\n`
+            if (recentCaptures.length > 0) {
+              systemPrompt += `Recent captures: ${recentCaptures.map((c: any) => c.title || 'Untitled').join(', ')}\n`
             }
+            systemPrompt += `Open tasks in this project: ${context.active.data.openTaskCount}\n\n`
+            systemPrompt += `When creating/modifying, use project ID: ${projectId}\n`
+            break
+          }
+          case 'planner': {
+            const today = new Date().toISOString().split('T')[0]
+            const offsetMinutes = new Date().getTimezoneOffset()
+            const offsetHours = -offsetMinutes / 60
+            const offsetSign = offsetHours >= 0 ? '+' : '-'
+            const offsetFormatted = `UTC${offsetSign}${Math.abs(offsetHours)}`
 
-            systemPrompt += `### Capture: ${capture.title || 'Untitled'}\n`
-            systemPrompt += `Type: ${capture.type}\n`
-
-            // Handle different capture types
-            if (capture.type === 'text' || capture.type === 'chat' || capture.type === 'decision') {
-              if (capture.bodyText) {
-                systemPrompt += `Content:\n${capture.bodyText}\n`
-              }
-              // Include tags if available
-              if (capture.tags && capture.tags.length > 0) {
-                systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
-              }
-            } else if (capture.type === 'image') {
-              // For images, include AI-generated detailed description if available
-              if (capture.detailedDescription) {
-                systemPrompt += `Image Description: ${capture.detailedDescription}\n`
-              } else {
-                systemPrompt += `Image: ${capture.filePath || 'No description available yet'}\n`
-                systemPrompt += `Note: Image description may still be generating.\n`
-              }
-              // Include tags if available
-              if (capture.tags && capture.tags.length > 0) {
-                systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
-              }
-            } else if (capture.type === 'audio') {
-              // For audio, try to get transcription
-              const transcription = await repository.getTranscriptionByCapture(capture.id)
-              if (transcription && transcription.status === 'done' && transcription.text) {
-                systemPrompt += `Transcription:\n${transcription.text}\n`
-              } else {
-                systemPrompt += `Audio file: ${capture.filePath || 'Unknown'}\n`
-                systemPrompt += `Note: Transcription is ${transcription?.status || 'pending'}\n`
-              }
-            } else if (capture.type === 'link') {
-              if (capture.bodyText) {
-                systemPrompt += `URL: ${capture.bodyText}\n`
-              }
-            }
-
-            systemPrompt += `Created: ${new Date(capture.createdAt).toLocaleString()}\n\n`
-          } else if (attachment.type === 'task') {
-            // Fetch latest task data from database
-            const task = await repository.getTask(attachment.id)
-            if (!task) {
-              console.warn('[Chat] Task not found:', attachment.id)
-              continue
-            }
-
-            systemPrompt += `### Task: ${task.title}\n`
-            systemPrompt += `Status: ${task.status}\n`
-            systemPrompt += `Priority: P${task.priority}\n`
-            systemPrompt += `Estimate: ${task.estimateMinutes} minutes\n`
-            if (task.notes) {
-              systemPrompt += `Notes: ${task.notes}\n`
-            }
-            systemPrompt += `Created: ${new Date(task.createdAt).toLocaleString()}\n\n`
-          } else if (attachment.type === 'summary') {
-            // Fetch latest summary from database
-            const summary = await repository.getProjectSummary(attachment.id)
-            if (!summary) {
-              console.warn('[Chat] Summary not found:', attachment.id)
-              continue
-            }
-
-            systemPrompt += `### Project Summary\n`
-            systemPrompt += `${summary.summaryMd}\n\n`
+            systemPrompt += `Current Context: Day Planner\n\n`
+            systemPrompt += `Today's date: ${today}\n`
+            systemPrompt += `User timezone: ${offsetFormatted}\n\n`
+            systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
+            systemPrompt += `## Workflow:\n`
+            systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
+            systemPrompt += `2. Get calendar events: calendar_day_events_get(date) - these are FIXED, don't schedule over them\n`
+            systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
+            systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
+            systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
+            systemPrompt += `   - CRITICAL: Use ISO datetime format WITHOUT timezone suffix: YYYY-MM-DDTHH:mm:ss\n`
+            systemPrompt += `   - Times are in user's LOCAL timezone (${offsetFormatted})\n`
+            systemPrompt += `   - When user says "9am", use: "${today}T09:00:00" (NO Z suffix!)\n`
+            systemPrompt += `   - When user says "5pm", use: "${today}T17:00:00" (NO Z suffix!)\n`
+            systemPrompt += `   - The system will automatically convert to UTC for storage\n`
+            systemPrompt += `   - locked: Set to FALSE by default - let user lock blocks manually via UI\n`
+            systemPrompt += `5. Validate: planner_draft_validate(draftPlanId) - checks for overlaps and conflicts\n`
+            systemPrompt += `6. Commit when user approves: planner_draft_commit(date)\n\n`
+            systemPrompt += `## Uncommitting Plans:\n`
+            systemPrompt += `- To "uncommit" or "unlock" a plan: planner_draft_uncommit(date)\n`
+            systemPrompt += `- This reverts a committed plan back to draft status for editing\n`
+            systemPrompt += `- After uncommitting, you can add/edit/delete blocks again\n\n`
+            systemPrompt += `## Guidelines:\n`
+            systemPrompt += `- Don't call projects_* tools unless user specifically asks about projects\n`
+            systemPrompt += `- Focus on planner_* and tasks_* tools\n`
+            systemPrompt += `- Add 4-8 blocks typically (don't overplan)\n`
+            systemPrompt += `- Respect calendar events (they're fixed)\n`
+            systemPrompt += `- DON'T commit automatically - ask user first or let them review\n`
+            systemPrompt += `- Set locked=false on blocks - users lock them manually via UI buttons\n`
+            systemPrompt += `- If user asks to "uncommit" or "unlock" plan, use planner_draft_uncommit(date)\n`
+            systemPrompt += `- Use planner_day_get(date) to check plan status (draft vs committed)\n`
+            break
+          }
+          case 'tasks': {
+            systemPrompt += `Current Context: All Tasks View\n`
+            systemPrompt += `Viewing all open tasks across all projects.\n`
+            break
+          }
+          case 'agents': {
+            systemPrompt += `Current Context: Agents Configuration\n`
+            systemPrompt += `You can help with understanding and configuring agents.\n`
+            break
+          }
+          case 'mcp-servers': {
+            systemPrompt += `Current Context: MCP Servers Configuration\n`
+            systemPrompt += `You can help with MCP server setup and configuration.\n`
+            break
+          }
+          case 'settings': {
+            systemPrompt += `Current Context: Settings\n`
+            systemPrompt += `You can help with configuring Open Loops settings.\n`
+            break
+          }
+          default: {
+            systemPrompt += `Current Context: General\n`
+            systemPrompt += `You can help with projects, tasks, planning, and configuration.\n`
           }
         }
 
-        console.log('[Chat] All attachments resolved and added to system prompt')
-      }
+        // Add attachment context for local models (inline since they can't use tools well)
+        if (attachments && attachments.length > 0) {
+          console.log('[Chat] Resolving attachments:', attachments.length)
+          systemPrompt += `\n\n## Attached Context:\n`
+          systemPrompt += `The user has attached the following items for reference:\n\n`
 
-      systemPrompt += `\nRules:
+          for (const attachment of attachments) {
+            console.log('[Chat] Resolving attachment:', attachment.type, attachment.id)
+
+            if (attachment.type === 'capture') {
+              const capture = await repository.getCapture(attachment.id)
+              if (!capture) {
+                console.warn('[Chat] Capture not found:', attachment.id)
+                continue
+              }
+
+              systemPrompt += `### Capture: ${capture.title || 'Untitled'}\n`
+              systemPrompt += `Type: ${capture.type}\n`
+
+              if (capture.type === 'text' || capture.type === 'chat' || capture.type === 'decision') {
+                if (capture.bodyText) {
+                  systemPrompt += `Content:\n${capture.bodyText}\n`
+                }
+                if (capture.tags && capture.tags.length > 0) {
+                  systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
+                }
+              } else if (capture.type === 'image') {
+                if (capture.detailedDescription) {
+                  systemPrompt += `Image Description: ${capture.detailedDescription}\n`
+                } else {
+                  systemPrompt += `Image: ${capture.filePath || 'No description available yet'}\n`
+                  systemPrompt += `Note: Image description may still be generating.\n`
+                }
+                if (capture.tags && capture.tags.length > 0) {
+                  systemPrompt += `Tags: ${capture.tags.join(', ')}\n`
+                }
+              } else if (capture.type === 'audio') {
+                const transcription = await repository.getTranscriptionByCapture(capture.id)
+                if (transcription && transcription.status === 'done' && transcription.text) {
+                  systemPrompt += `Transcription:\n${transcription.text}\n`
+                } else {
+                  systemPrompt += `Audio file: ${capture.filePath || 'Unknown'}\n`
+                  systemPrompt += `Note: Transcription is ${transcription?.status || 'pending'}\n`
+                }
+              } else if (capture.type === 'link') {
+                if (capture.bodyText) {
+                  systemPrompt += `URL: ${capture.bodyText}\n`
+                }
+              }
+
+              systemPrompt += `Created: ${new Date(capture.createdAt).toLocaleString()}\n\n`
+            } else if (attachment.type === 'task') {
+              const task = await repository.getTask(attachment.id)
+              if (!task) {
+                console.warn('[Chat] Task not found:', attachment.id)
+                continue
+              }
+
+              systemPrompt += `### Task: ${task.title}\n`
+              systemPrompt += `Status: ${task.status}\n`
+              systemPrompt += `Priority: P${task.priority}\n`
+              systemPrompt += `Estimate: ${task.estimateMinutes} minutes\n`
+              if (task.notes) {
+                systemPrompt += `Notes: ${task.notes}\n`
+              }
+              systemPrompt += `Created: ${new Date(task.createdAt).toLocaleString()}\n\n`
+            } else if (attachment.type === 'summary') {
+              const summary = await repository.getProjectSummary(attachment.id)
+              if (!summary) {
+                console.warn('[Chat] Summary not found:', attachment.id)
+                continue
+              }
+
+              systemPrompt += `### Project Summary\n`
+              systemPrompt += `${summary.summaryMd}\n\n`
+            }
+          }
+
+          console.log('[Chat] All attachments resolved and added to system prompt')
+        }
+
+        systemPrompt += `\nRules:
 - Keep responses SHORT (1-3 sentences). Be concise.
 - ONLY use tools when you need to:
   * Answer questions about the user's existing data (use get_captures, tasks_list, etc.)
   * Perform actions (create, update, delete)
 - DON'T call search/list tools when creating new content (poems, notes, ideas, etc.)
 - When user asks you to create something, just create it directly without searching first.`
+      }
 
       // Build conversation messages (without system - that goes in systemPrompt)
       const aiMessages: ModelMessage[] = messages.map((msg: any) => ({
