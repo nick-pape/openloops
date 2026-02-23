@@ -22,6 +22,7 @@ import { startHTTPTransport, stopHTTPTransport, isHTTPTransportRunning } from '.
 import { initLogger, closeLogger, logger } from './logger'
 import { ModelMessage } from '@ai-sdk/provider-utils'
 import { createAiSdkModel } from './llm/aiSdkClient'
+import { createClaudeCodeModel } from './llm/claudeCodeClient'
 import { runAgentStream } from './ai/agent/openLoopsAgent'
 import { isMicrosoftGraphConfigured } from './config/microsoft-graph'
 import { getMicrosoftAuthService } from './services/microsoft-auth'
@@ -899,8 +900,41 @@ Keep it concise and actionable.`
         content: msg.content
       }))
 
-      // Create AI SDK model
-      const model = createAiSdkModel({ baseUrl, model: modelName, apiKey })
+      // Create model based on provider type
+      let model
+      let skipMcpTools = false
+
+      if (llmType === 'claude-code') {
+        // Claude Code provider — connects to MCP HTTP server directly
+        // Auto-start MCP HTTP transport if not already running
+        if (!isHTTPTransportRunning()) {
+          console.log('[Chat] Auto-starting MCP HTTP transport for Claude Code...')
+          const httpPort = await repository.getSetting('mcp.http.port')
+          const httpAuthToken = await repository.getSetting('mcp.http.authToken')
+          await startHTTPTransport({
+            enabled: true,
+            port: httpPort ? parseInt(httpPort) : 3000,
+            authToken: httpAuthToken || undefined,
+          })
+        }
+
+        const mcpPort = await repository.getSetting('mcp.http.port') || '3000'
+        const mcpAuthToken = await repository.getSetting('mcp.http.authToken') || undefined
+        const mcpUrl = `http://localhost:${mcpPort}/mcp`
+
+        model = createClaudeCodeModel({
+          model: modelName,
+          mcpUrl,
+          mcpAuthToken,
+          systemPrompt,
+        })
+        skipMcpTools = true
+        // System prompt is baked into the provider — don't send it again via messages
+        systemPrompt = undefined as any
+      } else {
+        // Standard OpenAI-compatible provider
+        model = createAiSdkModel({ baseUrl, model: modelName, apiKey })
+      }
 
       // Create abort controller for cancellation
       const abortController = new AbortController()
@@ -911,7 +945,7 @@ Keep it concise and actionable.`
 
       // Start agent stream
       console.log('[Chat] Starting agent stream with tools...')
-      console.log('[Chat] Model:', modelName, 'BaseURL:', baseUrl)
+      console.log('[Chat] Provider:', llmType, 'Model:', modelName)
 
       // Notify renderer that streaming has started
       webContents.send('chat:started', { streamId })
@@ -923,7 +957,7 @@ Keep it concise and actionable.`
       // Increase maxSteps for planner context (needs more tool calls for draft → blocks → commit workflow)
       const maxSteps = context.active.type === 'planner' ? 25 : 10
       for await (const agentEvent of runAgentStream(
-        { model, maxSteps, temperature: 0.7, maxOutputTokens: 4000 },
+        { model, maxSteps, temperature: 0.7, maxOutputTokens: 4000, skipMcpTools },
         { messages: aiMessages, systemPrompt, abortSignal: abortController.signal }
       )) {
         eventCount++

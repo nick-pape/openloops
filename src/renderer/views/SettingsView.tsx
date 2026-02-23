@@ -522,6 +522,7 @@ export function SettingsView() {
           >
             <option value="disabled">Disabled (Local Fallback)</option>
             <option value="remote">Remote (OpenAI-compatible)</option>
+            <option value="claude-code">Claude Code (uses Claude subscription)</option>
           </select>
         </div>
 
@@ -601,6 +602,27 @@ export function SettingsView() {
                 </div>
               )}
               <small>For Ollama: Use model name from 'ollama list' (e.g., mistral, llama2)</small>
+            </div>
+          </>
+        )}
+
+        {settings.llm_type === 'claude-code' && (
+          <>
+            <div className="form-group">
+              <label>Model</label>
+              <select
+                value={settings.llm_model || 'sonnet'}
+                onChange={(e) => handleSettingChange('llm_model', e.target.value)}
+              >
+                <option value="sonnet">Sonnet (balanced)</option>
+                <option value="opus">Opus (most capable)</option>
+                <option value="haiku">Haiku (fastest)</option>
+              </select>
+              <small>Uses your existing Claude subscription. No API key needed.</small>
+            </div>
+            <div className="info-box">
+              <p><strong>Setup:</strong> Run <code>claude auth login</code> in your terminal to authenticate.
+              The MCP HTTP transport will be auto-started when you chat.</p>
             </div>
           </>
         )}
