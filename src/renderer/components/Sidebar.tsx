@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Project } from '../../types'
 import { useJobs } from '../contexts/JobsContext'
 import './Sidebar.css'
@@ -32,6 +32,10 @@ export function Sidebar({
 }: SidebarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
+  const [sidebarWidth, setSidebarWidth] = useState(250)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const isResizingRef = useRef(false)
+
   const { pendingCount } = useJobs()
 
   const handleCreate = () => {
@@ -42,9 +46,43 @@ export function Sidebar({
     }
   }
 
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizingRef.current = true
+    document.body.style.cursor = 'col-resize'
+  }
+
+  const stopResizing = () => {
+    isResizingRef.current = false
+    document.body.style.cursor = ''
+  }
+
+  const resize = (e: MouseEvent) => {
+    if (!isResizingRef.current || !sidebarRef.current) return
+    
+    const newWidth = Math.max(150, Math.min(400, e.clientX))
+    setSidebarWidth(newWidth)
+  }
+
+  useEffect(() => {
+    if (isResizingRef.current) {
+      window.addEventListener('mousemove', resize)
+      window.addEventListener('mouseup', stopResizing)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', resize)
+      window.removeEventListener('mouseup', stopResizing)
+    }
+  }, [])
+
   return (
     <>
-      <aside className="sidebar">
+      <aside 
+        className="sidebar"
+        ref={sidebarRef}
+        style={{ width: `${sidebarWidth}px` }}
+      >
         <div className="sidebar-header">
           <h2>🤹‍♂️ Open Loops</h2>
         </div>
@@ -151,6 +189,11 @@ export function Sidebar({
             </button>
           </div>
         </div>
+        
+        <div 
+          className="resize-handle"
+          onMouseDown={startResizing}
+        />
       </aside>
 
       {showCreateModal && (

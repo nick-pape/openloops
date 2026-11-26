@@ -41,6 +41,10 @@ build/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+test-data/
+playwright-report/
+playwright/.cache/
 
 # OS files
 Thumbs.db

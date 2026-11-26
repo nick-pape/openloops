@@ -743,8 +743,9 @@ Keep it concise and actionable.`
           systemPrompt += `You are helping the user create a daily schedule using a draft → commit workflow.\n\n`
           systemPrompt += `## Workflow:\n`
           systemPrompt += `1. Create a draft plan: planner_draft_create(date)\n`
-          systemPrompt += `2. Get calendar events: calendar_day_events_get(date) - these are FIXED, don't schedule over them\n`
-          systemPrompt += `3. Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
+          systemPrompt += `2. ONCE ONLY: Get calendar events: calendar_day_events_get(date) - these are FIXED, don't schedule over them\n`
+          systemPrompt += `3. ONCE ONLY: Get tasks to schedule: tasks_list_candidates_for_day(date) or tasks_list(status='open')\n`
+          systemPrompt += `   IMPORTANT: Steps 2 & 3 only need to be called ONCE. Don't repeat these calls.\n`
           systemPrompt += `4. Add blocks using primitives: planner_block_add(draftPlanId, start, end, title, kind, locked, taskId?, notes?)\n`
           systemPrompt += `   - kind options: 'task', 'focus', 'break', 'buffer', 'admin'\n`
           systemPrompt += `   - CRITICAL: Use ISO datetime format WITHOUT timezone suffix: YYYY-MM-DDTHH:mm:ss\n`
@@ -762,6 +763,8 @@ Keep it concise and actionable.`
           systemPrompt += `## Guidelines:\n`
           systemPrompt += `- Don't call projects_* tools unless user specifically asks about projects\n`
           systemPrompt += `- Focus on planner_* and tasks_* tools\n`
+          systemPrompt += `- After getting calendar events and tasks (steps 2-3), proceed directly to adding blocks\n`
+          systemPrompt += `- Do NOT repeatedly call calendar_day_events_get or tasks_list_candidates_for_day\n`
           systemPrompt += `- Add 4-8 blocks typically (don't overplan)\n`
           systemPrompt += `- Respect calendar events (they're fixed)\n`
           systemPrompt += `- DON'T commit automatically - ask user first or let them review\n`
@@ -1491,6 +1494,19 @@ Keep it concise and actionable.`
 
       // Upsert each event
       for (const event of events) {
+        // Log first event to debug timezone issues
+        if (imported === 0 && updated === 0) {
+          console.log('[MS Graph] First event timezone debug:', {
+            subject: event.subject,
+            startDateTime: event.start.dateTime,
+            startTimeZone: event.start.timeZone,
+            endDateTime: event.end.dateTime,
+            endTimeZone: event.end.timeZone,
+            parsedStart: new Date(event.start.dateTime).toISOString(),
+            parsedEnd: new Date(event.end.dateTime).toISOString()
+          })
+        }
+
         const result = await repository.upsertMicrosoftGraphEvent(
           event.id,
           event.subject || '(No title)',

@@ -134,7 +134,10 @@ export class MicrosoftAuthService {
         }
       })
 
-      console.log('[MS Auth] MSAL client initialized with persistent cache')
+      // Force cache to load by accessing it
+      const cache = this.pca.getTokenCache()
+      const accounts = await cache.getAllAccounts()
+      console.log('[MS Auth] MSAL client initialized with persistent cache,', accounts.length, 'accounts found')
     } catch (error) {
       console.error('[MS Auth] Failed to initialize persistent cache:', error)
       // Fallback to in-memory cache

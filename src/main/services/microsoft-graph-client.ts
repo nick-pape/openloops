@@ -177,9 +177,10 @@ export class MicrosoftGraphClient {
               .api(`/me/calendars/${calendarId}/calendarView`)
               .query({
                 startDateTime,
-                endDateTime
+                endDateTime,
+                $select: 'id,subject,start,end,location,isAllDay,isCancelled,organizer'
               })
-              .select('id,subject,start,end,location,isAllDay,isCancelled,organizer')
+              .header('Prefer', 'outlook.timezone="UTC"')
               .orderby('start/dateTime')
               .top(250)
               .get()
@@ -202,6 +203,7 @@ export class MicrosoftGraphClient {
             startDateTime,
             endDateTime
           })
+          .header('Prefer', 'outlook.timezone="UTC"')
           .select('id,subject,start,end,location,isAllDay,isCancelled,organizer')
           .orderby('start/dateTime')
           .top(250)
