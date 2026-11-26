@@ -1,0 +1,14 @@
+{
+  "browser": {
+    "browserName": "electron",
+    "launchOptions": {
+      "args": [
+        "dist-electron/main.js",
+        "--user-data-dir=C:\\Users\\nickp\\AppData\\Roaming\\open-loops"
+      ],
+      "executablePath": "node_modules/electron/dist/electron.exe",
+      "cwd": "C:\\Users\\nickp\\src\\note-taking-app",
+      "timeout": 90000
+    }
+  }
+}

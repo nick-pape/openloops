@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@robertn702/playwright-mcp-electron@latest",
+        "--browser", "electron",
+        "--config", "./playwright-mcp.config.json"
+      ],
+      "env": {
+        "NODE_ENV": "development",
+        "OPEN_LOOPS_FORCE_FILE_LOAD": "1",
+        "CLAUDECODE": "",
+        "CLAUDE_CODE_PATH": "C:\\Users\\nickp\\.local\\bin\\claude.exe"
+      }
+    }
+  }
+}
