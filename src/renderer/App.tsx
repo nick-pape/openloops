@@ -170,6 +170,12 @@ type View =
     setCurrentView({ type: 'project', projectId: project.id })
   }
 
+  const handleDeleteProject = async (id: string) => {
+    await window.electron.projects.delete(id)
+    setProjects(projects.filter(p => p.id !== id))
+    setCurrentView({ type: 'welcome' })
+  }
+
   // Set sidebar width CSS variable
   useEffect(() => {
     const html = document.documentElement as HTMLElement

@@ -43,6 +43,8 @@ export interface AgentConfig {
   maxSteps?: number
   temperature?: number
   maxOutputTokens?: number
+  /** When true, skip MCP tool loading (provider handles tools directly) */
+  skipMcpTools?: boolean
 }
 
 export interface AgentRunOptions {
@@ -61,22 +63,24 @@ export async function* runAgentStream(
   config: AgentConfig,
   options: AgentRunOptions
 ): AsyncGenerator<AgentStreamEvent> {
-  const { model, maxSteps = 15, temperature = 0.7, maxOutputTokens = 4000 } = config
+  const { model, maxSteps = 15, temperature = 0.7, maxOutputTokens = 4000, skipMcpTools = false } = config
   const { messages, systemPrompt, abortSignal } = options
 
   try {
-    // Get tools from MCP servers via toolset composer
-    // Currently just the built-in 'openloops' server, but architected for N servers
-    logger.info('[Agent] Getting tools from MCP servers...')
-    let tools: any
+    // Get tools from MCP servers (skip when provider handles tools directly, e.g. Claude Code)
+    let tools: any = undefined
 
-    try {
-      // Request toolset for the default agent (currently just 'openloops' server)
-      tools = await getToolSetForServers(['openloops'])
-      logger.info('[Agent] Got', Object.keys(tools).length, 'tools')
-    } catch (toolError: any) {
-      logger.warn('[Agent] Failed to get MCP tools, running without tools:', toolError.message)
-      tools = {}
+    if (!skipMcpTools) {
+      logger.info('[Agent] Getting tools from MCP servers...')
+      try {
+        tools = await getToolSetForServers(['openloops'])
+        logger.info('[Agent] Got', Object.keys(tools).length, 'tools')
+      } catch (toolError: any) {
+        logger.warn('[Agent] Failed to get MCP tools, running without tools:', toolError.message)
+        tools = {}
+      }
+    } else {
+      logger.info('[Agent] Skipping MCP tool loading (provider handles tools directly)')
     }
 
     // Build messages with optional system prompt
@@ -88,30 +92,38 @@ export async function* runAgentStream(
 
     logger.info('[Agent] Starting stream with', fullMessages.length, 'messages, maxSteps:', maxSteps)
 
-    // Use AI SDK's streamText with stopWhen for multi-turn tool execution
-    const result = streamText({
+    // Build streamText options — omit provider-specific settings when using Claude Code
+    const streamOptions: any = {
       model,
       messages: fullMessages,
-      tools,
       stopWhen: stepCountIs(maxSteps),
-      temperature,
-      maxOutputTokens,
       abortSignal,
-      // Provider options for Ollama (passed through OpenAI-compatible interface)
-      providerOptions: {
+      onStepFinish: ({ finishReason }: { finishReason: string }) => {
+        logger.info('[Agent] Step finished, reason:', finishReason)
+      },
+    }
+
+    if (!skipMcpTools) {
+      // Standard path: pass tools + Ollama-specific options
+      streamOptions.tools = tools
+      streamOptions.temperature = temperature
+      streamOptions.maxOutputTokens = maxOutputTokens
+      streamOptions.providerOptions = {
         openai: {
           body: {
             options: {
-              num_ctx: 16384 // Increase context window to 16k tokens
+              num_ctx: 16384
             }
           }
         }
-      },
-      // Called when a step finishes
-      onStepFinish: ({ finishReason }) => {
-        logger.info('[Agent] Step finished, reason:', finishReason)
-      },
-    })
+      }
+    } else {
+      // Claude Code path: provider manages tools, no Ollama-specific options
+      streamOptions.tools = undefined
+    }
+
+    // Use AI SDK's streamText with stopWhen for multi-turn tool execution
+    const result = streamText(streamOptions)
 
     let stepNumber = 0
 

@@ -1,0 +1,21 @@
+.resizer {
+  width: 4px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  cursor: ew-resize;
+  position: relative;
+}
+
+.resizer:hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -20px;
+  bottom: -20px;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  z-index: 100;
+}
+
+.resizer.active {
+  background: linear-gradient(90deg, transparent, #007bff, transparent);
+}
